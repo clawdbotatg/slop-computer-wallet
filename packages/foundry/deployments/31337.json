@@ -1,5 +1,5 @@
 {
-  "0x3EBD66861C1d8F298c20ED56506b063206103227": "Multisig",
-  "0xBF3cD410Aa5a3E9dA22FD9109AdD5D3655fcb1c5": "MultisigFactory",
+  "0x7C10A8944Baa22A41a51B82DC419e866a04e55dB": "MultisigFactory",
+  "0xc8c25Aab3eeA991E083d2d0240eE4D693c59bDAC": "Multisig",
   "networkName": "anvil-hardhat"
 }

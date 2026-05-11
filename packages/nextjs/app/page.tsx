@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Address, AddressInput } from "@scaffold-ui/components";
 import type { NextPage } from "next";
-import { keccak256, stringToHex } from "viem";
+import { keccak256, stringToHex, zeroAddress } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount } from "wagmi";
 import {
@@ -26,10 +26,13 @@ const Home: NextPage = () => {
 
   const saltHex = saltLabel ? keccak256(stringToHex(saltLabel)) : ZERO_BYTES32;
 
+  // Factory now binds msg.sender into the effective salt to prevent front-running, so the
+  // prediction depends on which account will deploy the multisig.
+  const deployerForPredict = (connectedAddress ?? zeroAddress) as `0x${string}`;
   const { data: predictedAddress, refetch: refetchPredicted } = useScaffoldReadContract({
     contractName: "MultisigFactory",
     functionName: "getMultisigAddress",
-    args: [saltHex],
+    args: [deployerForPredict, saltHex],
   });
 
   const { writeContractAsync: writeFactoryAsync, isMining } = useScaffoldWriteContract({

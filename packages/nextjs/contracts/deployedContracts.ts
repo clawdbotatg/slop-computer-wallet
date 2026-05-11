@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     Multisig: {
-      address: "0x3ebd66861c1d8f298c20ed56506b063206103227",
+      address: "0xc8c25aab3eea991e083d2d0240ee4d693c59bdac",
       abi: [
         {
           type: "constructor",
@@ -66,6 +66,25 @@ const deployedContracts = {
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "credentialIdOf",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -745,6 +764,11 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "EmptyBatch",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "ExecutionFailed",
           inputs: [],
         },
@@ -810,10 +834,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 51,
+      deployedOnBlock: 55,
     },
     MultisigFactory: {
-      address: "0xbf3cd410aa5a3e9da22fd9109add5d3655fcb1c5",
+      address: "0x7c10a8944baa22a41a51b82dc419e866a04e55db",
       abi: [
         {
           type: "constructor",
@@ -875,6 +899,11 @@ const deployedContracts = {
           name: "getMultisigAddress",
           inputs: [
             {
+              name: "deployer",
+              type: "address",
+              internalType: "address",
+            },
+            {
               name: "salt",
               type: "bytes32",
               internalType: "bytes32",
@@ -913,6 +942,12 @@ const deployedContracts = {
               internalType: "address",
             },
             {
+              name: "deployer",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
               name: "salt",
               type: "bytes32",
               indexed: false,
@@ -940,7 +975,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 52,
+      deployedOnBlock: 56,
     },
   },
 } as const;

@@ -22,15 +22,15 @@ library Clones {
     function cloneDeterministic(address implementation, bytes32 salt) internal returns (address instance) {
         // EIP-1167 minimal proxy bytecode
         // 3d602d80600a3d3981f3363d3d373d3d3d363d73<implementation>5af43d82803e903d91602b57fd5bf3
-        assembly {
-            // Store the bytecode in memory
+        assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
             mstore(add(ptr, 0x14), shl(0x60, implementation))
             mstore(add(ptr, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
-            
-            // Deploy using CREATE2
             instance := create2(0, ptr, 0x37, salt)
+            // L-3: advance the free memory pointer past the 0x37 bytes we just wrote so future
+            // Solidity-managed allocations don't overlap.
+            mstore(0x40, add(ptr, 0x40))
         }
         if (instance == address(0)) {
             revert CloneCreationFailed();
@@ -51,12 +51,14 @@ library Clones {
     ) internal pure returns (address predicted) {
         // First compute the init code hash
         bytes32 initCodeHash;
-        assembly {
+        assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
             mstore(add(ptr, 0x14), shl(0x60, implementation))
             mstore(add(ptr, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
             initCodeHash := keccak256(ptr, 0x37)
+            // L-3: advance the free memory pointer past the scratch bytes.
+            mstore(0x40, add(ptr, 0x40))
         }
         
         // CREATE2 address = keccak256(0xff ++ deployer ++ salt ++ initCodeHash)[12:]

@@ -55,6 +55,10 @@ contract Multisig is IERC1271, Initializable {
     /// @notice Optional reverse lookup: keccak256(credentialId) => passkey address (for login flows).
     mapping(bytes32 => address) public credentialIdToAddress;
 
+    /// @notice Forward lookup: passkey signer address => credentialId hash that maps to it (0 if none set).
+    /// @dev Kept so removeSigner can clear `credentialIdToAddress` and avoid stale reverse-lookup entries.
+    mapping(address => bytes32) public credentialIdOf;
+
     event SignerAdded(address indexed signer, bool isPasskey);
     event SignerRemoved(address indexed signer);
     event ThresholdChanged(uint256 newThreshold);
@@ -73,6 +77,7 @@ contract Multisig is IERC1271, Initializable {
     error SignersUnsorted();
     error ExecutionFailed();
     error SignerTypeMismatch();
+    error EmptyBatch();
 
     modifier onlySelf() {
         if (msg.sender != address(this)) revert NotSelf();
@@ -109,6 +114,8 @@ contract Multisig is IERC1271, Initializable {
             _addSigner(eoaSigners[i], 0, 0, 0);
         }
         for (uint256 i = 0; i < passkeyQxs.length; i++) {
+            // M-1: reject zero passkey coordinates so we never register a slot that no one can sign for.
+            if (passkeyQxs[i] == bytes32(0) || passkeyQys[i] == bytes32(0)) revert InvalidSigner();
             address pkAddr = getPasskeyAddress(passkeyQxs[i], passkeyQys[i]);
             _addSigner(pkAddr, passkeyQxs[i], passkeyQys[i], credentialIdHashes[i]);
         }
@@ -170,6 +177,14 @@ contract Multisig is IERC1271, Initializable {
         if (_signers.length - 1 < threshold) revert InvalidThreshold();
 
         delete signerInfo[signer];
+
+        // L-1: clear the reverse credentialId mapping so off-chain lookups don't return a removed passkey.
+        bytes32 credId = credentialIdOf[signer];
+        if (credId != bytes32(0)) {
+            delete credentialIdToAddress[credId];
+            delete credentialIdOf[signer];
+        }
+
         // swap-pop from _signers
         for (uint256 i = 0; i < _signers.length; i++) {
             if (_signers[i] == signer) {
@@ -194,6 +209,7 @@ contract Multisig is IERC1271, Initializable {
         _signers.push(signer);
         if (credId != bytes32(0)) {
             credentialIdToAddress[credId] = signer;
+            credentialIdOf[signer] = credId;
         }
         emit SignerAdded(signer, qx != bytes32(0));
     }
@@ -244,6 +260,8 @@ contract Multisig is IERC1271, Initializable {
         external
         returns (bytes[] memory results)
     {
+        // I-3: refuse empty batches so we never burn a nonce on a no-op.
+        if (calls.length == 0) revert EmptyBatch();
         if (block.timestamp > deadline) revert ExpiredSignature();
         bytes32 hash = getBatchExecHash(calls, deadline);
         _verifySignatures(hash, signatures);
@@ -316,8 +334,9 @@ contract Multisig is IERC1271, Initializable {
 
             if (sig.sigType == SignerType.EOA) {
                 if (info.qx != bytes32(0)) return 0xffffffff;
-                bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
-                (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(ethHash, sig.data);
+                // M-2: ERC-1271 verifies the hash as-signed. DeFi protocols (EIP-712 / signTypedData_v4) pass an
+                // already-prepared digest — adding a personal_sign prefix here would silently reject them.
+                (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, sig.data);
                 if (err != ECDSA.RecoverError.NoError || recovered != sig.signer) return 0xffffffff;
             } else {
                 if (info.qx == bytes32(0)) return 0xffffffff;
