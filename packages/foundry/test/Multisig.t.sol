@@ -355,6 +355,39 @@ contract MultisigTest is Test {
         assertEq(wallet.nonce(), 0);
     }
 
+    function test_C_L3_ExecTransactionIsNonReentrant() public {
+        // Deploy a malicious target that calls back into execTransaction during its handler.
+        // The outer exec's nonReentrant must cause the inner call to revert; with _bubbleRevert
+        // that revert propagates to the outer call.
+        ReentrantTarget bad = new ReentrantTarget(address(wallet));
+
+        // Pre-sign an inner exec (target = address(this), trivial) for nonce 1 — the value the
+        // nonce will hold AFTER the outer exec increments. The malicious target tries to invoke it.
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory innerData = "";
+        // The inner exec hash is computed against nonce=1 because the outer increments before calling.
+        bytes32 innerHash = keccak256(
+            abi.encode(block.chainid, address(wallet), uint256(1), deadline, address(this), uint256(0), keccak256(""))
+        );
+        Multisig.Signature[] memory innerSigs = _twoEoaSigs(innerHash, alicePk, aliceAddr, bobPk, bobAddr);
+        bad.arm(address(this), 0, innerData, deadline, innerSigs);
+
+        // Outer exec: ask the multisig to call the malicious target.
+        bytes memory outerData = abi.encodeWithSelector(ReentrantTarget.trigger.selector);
+        bytes32 outerHash = wallet.getExecHash(address(bad), 0, outerData, deadline);
+        Multisig.Signature[] memory outerSigs = _twoEoaSigs(outerHash, alicePk, aliceAddr, bobPk, bobAddr);
+
+        // The inner re-entry hits the transient reentrancy lock and reverts; the outer bubbles it up.
+        vm.expectRevert();
+        wallet.execTransaction(address(bad), 0, outerData, deadline, outerSigs);
+    }
+
+    function test_B_L1_FactoryRejectsCodelessImplementation() public {
+        // Passing an EOA (no code) to the factory constructor should revert.
+        vm.expectRevert(MultisigFactory.ImplementationHasNoCode.selector);
+        new MultisigFactory(aliceAddr);
+    }
+
     // ============ helpers ============
 
     function _isSigner(address addr) internal view returns (bool) {
@@ -406,5 +439,42 @@ contract MultisigTest is Test {
             sigs[0] = s2;
             sigs[1] = s1;
         }
+    }
+}
+
+/// @notice Helper used by test_C_L3_*: when the multisig calls `trigger()`, this contract
+/// re-enters `execTransaction` on the multisig. With the reentrancy guard in place this
+/// inner call must revert.
+contract ReentrantTarget {
+    Multisig public immutable wallet;
+    address public target;
+    uint256 public value;
+    bytes public data;
+    uint256 public deadline;
+    Multisig.Signature[] internal _sigs;
+
+    constructor(address _wallet) {
+        wallet = Multisig(payable(_wallet));
+    }
+
+    function arm(
+        address _target,
+        uint256 _value,
+        bytes calldata _data,
+        uint256 _deadline,
+        Multisig.Signature[] calldata sigs
+    ) external {
+        target = _target;
+        value = _value;
+        data = _data;
+        deadline = _deadline;
+        delete _sigs;
+        for (uint256 i = 0; i < sigs.length; i++) {
+            _sigs.push(sigs[i]);
+        }
+    }
+
+    function trigger() external {
+        wallet.execTransaction(target, value, data, deadline, _sigs);
     }
 }

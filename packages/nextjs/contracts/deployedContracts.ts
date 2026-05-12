@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     Multisig: {
-      address: "0xc8c25aab3eea991e083d2d0240ee4d693c59bdac",
+      address: "0xdc88b5feffd566bfa016b6b9268ea29929e7adf1",
       abi: [
         {
           type: "constructor",
@@ -819,6 +819,11 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "SignerTypeMismatch",
           inputs: [],
         },
@@ -834,10 +839,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 55,
+      deployedOnBlock: 57,
     },
     MultisigFactory: {
-      address: "0x7c10a8944baa22a41a51b82dc419e866a04e55db",
+      address: "0x25c74b7124bae93364213a6124a5e45bb0e98889",
       abi: [
         {
           type: "constructor",
@@ -973,9 +978,14 @@ const deployedContracts = {
           name: "CloneCreationFailed",
           inputs: [],
         },
+        {
+          type: "error",
+          name: "ImplementationHasNoCode",
+          inputs: [],
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 56,
+      deployedOnBlock: 58,
     },
   },
 } as const;

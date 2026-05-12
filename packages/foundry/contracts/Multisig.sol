@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/utils/cryptography/WebAuthn.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /**
  * @title Multisig
@@ -13,7 +14,7 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
  * @notice Supports ERC-1271 signature validation so the multisig itself can sign off-chain messages
  * @author BuidlGuidl
  */
-contract Multisig is IERC1271, Initializable {
+contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     enum SignerType {
         EOA,
         Passkey
@@ -233,6 +234,9 @@ contract Multisig is IERC1271, Initializable {
     /**
      * @notice Execute a single call once enough signers have approved.
      * @dev Signatures array MUST be sorted ascending by `signer`.
+     *      `deadline` is inclusive — a tx with `block.timestamp == deadline` still executes.
+     *      `nonReentrant` (audit C L-3) prevents a malicious `target` from re-entering an exec
+     *      function and consuming pre-signed signatures for a future nonce out of order.
      */
     function execTransaction(
         address target,
@@ -240,7 +244,7 @@ contract Multisig is IERC1271, Initializable {
         bytes calldata data,
         uint256 deadline,
         Signature[] calldata signatures
-    ) external returns (bytes memory result) {
+    ) external nonReentrant returns (bytes memory result) {
         if (block.timestamp > deadline) revert ExpiredSignature();
         bytes32 hash = getExecHash(target, value, data, deadline);
         _verifySignatures(hash, signatures);
@@ -255,9 +259,11 @@ contract Multisig is IERC1271, Initializable {
     /**
      * @notice Execute a batch of calls atomically once enough signers have approved.
      * @dev Signatures array MUST be sorted ascending by `signer`.
+     *      `deadline` is inclusive. `nonReentrant` (audit C L-3) preserves intra-batch ordering.
      */
     function execBatchTransaction(Call[] calldata calls, uint256 deadline, Signature[] calldata signatures)
         external
+        nonReentrant
         returns (bytes[] memory results)
     {
         // I-3: refuse empty batches so we never burn a nonce on a no-op.

@@ -17,7 +17,11 @@ contract MultisigFactory {
         address indexed multisig, address indexed deployer, bytes32 salt, address[] eoaSigners, uint256 threshold
     );
 
+    error ImplementationHasNoCode();
+
     constructor(address _implementation) {
+        // Audit B L-1: refuse a codeless implementation so every clone has working logic.
+        if (_implementation.code.length == 0) revert ImplementationHasNoCode();
         implementation = _implementation;
     }
 
