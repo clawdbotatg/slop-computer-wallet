@@ -11,7 +11,7 @@ optimizer_runs = 200
 [rpc_endpoints]
 default_network = "http://127.0.0.1:8545"
 
-mainnet = "https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}"
+mainnet = "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 sepolia = "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 arbitrum = "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 arbitrumSepolia = "https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
@@ -23,8 +23,8 @@ polygonZkEvm = "https://zkevm-rpc.com"
 polygonZkEvmTestnet = "https://rpc.public.zkevm-test.net"
 gnosis = "https://rpc.gnosischain.com"
 chiado = "https://rpc.chiadochain.net"
-base = "https://mainnet.base.org"
-baseSepolia = "https://sepolia.base.org"
+base = "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+baseSepolia = "https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 scrollSepolia = "https://sepolia-rpc.scroll.io"
 scroll = "https://rpc.scroll.io"
 pgn = "https://rpc.publicgoods.network"
@@ -34,8 +34,15 @@ pgnTestnet = "https://sepolia.publicgoods.network"
 localhost = "http://127.0.0.1:8545"
 
 [etherscan]
+# Etherscan V2 — single API key works across all chains via chainid query param.
+mainnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = 1 }
+sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155111", chain = 11155111 }
+base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = 8453 }
+baseSepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = 84532 }
+arbitrum = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161", chain = 42161 }
+optimism = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = 10 }
+polygon = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = 137 }
 polygonMumbai = { key = "${ETHERSCAN_API_KEY}" }
-sepolia = { key = "${ETHERSCAN_API_KEY}" }
 
 
 

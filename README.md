@@ -6,652 +6,158 @@ Built with Scaffold-ETH 2 + Foundry.
 
 ## What's here
 
-- `packages/foundry/contracts/Multisig.sol` — the multisig. Mix EOA and passkey (WebAuthn / secp256r1) signers, configurable threshold, self-governed admin (add/remove signer + change threshold via execTransaction), ERC-1271 `isValidSignature`.
-- `packages/foundry/contracts/MultisigFactory.sol` — EIP-1167 minimal-proxy factory with deterministic CREATE2 addresses.
-- `packages/foundry/test/Multisig.t.sol` — 18 tests covering init, exec, batch, threshold rules, replay, expiry, admin paths, ERC-1271.
+- `packages/foundry/contracts/Multisig.sol` — the multisig. Mix EOA and passkey (WebAuthn / secp256r1) signers, configurable threshold, self-governed admin (add/remove signer + change threshold via `execTransaction`), ERC-1271 `isValidSignature`, transient-storage reentrancy guard.
+- `packages/foundry/contracts/MultisigFactory.sol` — EIP-1167 minimal-proxy factory. CREATE2 salt is `keccak256(msg.sender, salt)` so different deployers can't collide on the same predicted address.
+- `packages/foundry/test/Multisig.t.sol` — 25 tests covering init, exec, batch, threshold rules, replay, expiry, admin paths, ERC-1271, reentrancy, factory invariants. All audit-driven additions are prefixed with their finding ID (e.g. `test_M1_*`, `test_L2_*`).
+- `packages/foundry/script/DeployDeterministic.s.sol` — production cross-chain deploy via the Arachnid CREATE2 singleton. Gives identical contract addresses on every EVM chain it runs against.
+- `packages/foundry/script/DeployFactory.s.sol` — simple `new`-based deploy used for local anvil iteration.
 - `packages/nextjs/app/page.tsx` — factory UI: pick signers + threshold + salt, predict the address, deploy.
-- `packages/nextjs/app/[address]/page.tsx` — multisig UI: view state, propose a tx, collect signatures from connected wallet(s), execute. Includes a quick-admin form that fills the call data for add/remove signer and changeThreshold.
+- `packages/nextjs/app/[address]/page.tsx` — multisig UI: view state, propose a tx, collect signatures from connected wallet(s), execute. Quick-admin form fills the calldata for `addEoaSigner` / `removeSigner` / `changeThreshold`.
 
 ## Signature format
 
-`execTransaction` takes an array of `Signature` structs (sigType, signer, data) **sorted ascending by signer address** — duplicates and unsorted arrays revert.
+`execTransaction` takes an array of `Signature` structs (`sigType`, `signer`, `data`), **sorted ascending by `signer`** — duplicates and unsorted arrays revert.
 
-- EOA: `data = personal_sign over getExecHash(...)`. Contract applies the `\x19Ethereum Signed Message:\n32` prefix before `ecrecover`, so any wallet's signMessage works.
-- Passkey: `data = abi.encode(qx, qy, WebAuthn.WebAuthnAuth)`. Contract verifies via OZ `WebAuthn.verify` against the raw exec hash as challenge.
+- **EOA**: `data` = a 65-byte ECDSA signature over `getExecHash(...)` produced via `personal_sign`. The contract applies the `\x19Ethereum Signed Message:\n32` prefix before `ecrecover`, so any wallet's `signMessage` works.
+- **Passkey**: `data` = `abi.encode(qx, qy, WebAuthn.WebAuthnAuth)`. The contract verifies via OZ `WebAuthn.verify` against the raw exec hash as the challenge.
 
-## Quickstart
+`isValidSignature` (ERC-1271) recovers the hash **as-passed** (no `personal_sign` prefix), so callers like Permit2 / Seaport that present an EIP-712 digest validate correctly.
 
-1. Install dependencies:
+## Local quickstart
 
-```
+```bash
 yarn install
+yarn chain          # terminal 1: anvil at :8545
+yarn deploy         # terminal 2: deploys via DeployFactory.s.sol
+yarn start          # terminal 3: dev server at :3001
 ```
 
-2. Run a local network:
+For local deploys the Anvil prefunded account #9 is used via the `scaffold-eth-default` keystore (password `localhost`).
+
+## Deployed contracts
+
+Both contracts deploy via the [Arachnid CREATE2 singleton](https://github.com/Arachnid/deterministic-deployment-proxy) at `0x4e59b44847b379578588920cA78FbF26c0B4956C`, which is preinstalled on every major EVM chain. Same salts + same compiler settings → identical addresses on every chain.
+
+### Live deployments
+
+| Chain | Multisig (implementation) | MultisigFactory |
+|---|---|---|
+| Ethereum mainnet (1) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://etherscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://etherscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) |
+| Base (8453) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://basescan.org/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://basescan.org/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) |
+
+Both contracts are verified on the respective explorer (click the addresses to read the source). On every chain, `Factory.implementation()` returns the impl address above.
+
+### Artifacts in this repo
+
+| Path | What |
+|---|---|
+| `packages/foundry/deployments/1.json` | Mainnet address map (used by the frontend) |
+| `packages/foundry/deployments/8453.json` | Base address map (used by the frontend) |
+| `packages/foundry/broadcast/DeployDeterministic.s.sol/1/run-latest.json` | Mainnet tx receipts |
+| `packages/foundry/broadcast/DeployDeterministic.s.sol/8453/run-latest.json` | Base tx receipts |
+| `packages/foundry/script/DeployDeterministic.s.sol` | The script that produced all of the above |
+
+### Salts used
 
 ```
-yarn chain
+IMPL_SALT    = keccak256("slop-multisig-impl-v1")
+FACTORY_SALT = keccak256("slop-multisig-factory-v1")
 ```
 
-3. Deploy the contracts:
+Bump these (e.g. to `-v2`) if `Multisig.sol` or `MultisigFactory.sol` ever change — otherwise the post-deploy `code.length` check will fail because the new bytecode hashes to a different address.
 
-```
-yarn deploy
-```
+## Deploying to a new chain
 
-4. Configure environment variables in `packages/nextjs/.env.local`:
+The same `DeployDeterministic.s.sol` script handles every chain. Because it goes through the Arachnid singleton, you'll get the same `0x346D...df1e` and `0x21f0...602E` addresses as the live deployments above, provided you don't change `Multisig.sol`/`MultisigFactory.sol` or compiler settings.
 
-```
-NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
-FACILITATOR_PRIVATE_KEY=0x...
-ANTHROPIC_API_KEY=your_anthropic_api_key
-```
+### One-time setup
 
-5. Start the app:
+1. **Add your Alchemy key.** Edit `packages/foundry/.env` and replace `ALCHEMY_API_KEY=...` with your own key from [dashboard.alchemy.com](https://dashboard.alchemy.com). One Alchemy app covers all networks. The committed `.env.example` is a template; the real `.env` is gitignored.
+2. **(Optional) Use your own Etherscan key** for `--verify` instead of the shared scaffold-eth default. Replace `ETHERSCAN_API_KEY=...` in the same `.env`. A single Etherscan V2 key works on mainnet, Base, Arbitrum, Optimism, Polygon.
+3. **Create a deployer keystore.** This repo expects a Foundry keystore named `slop-deployer` with its password in a sibling file. Generate one:
 
-```
-yarn start
-```
+   ```bash
+   cast wallet new ~/.foundry/keystores
+   # then rename it
+   mv ~/.foundry/keystores/<uuid-the-command-printed> ~/.foundry/keystores/slop-deployer
+   # and save the password you typed into:
+   echo -n "<your password>" > ~/.foundry/keystores/slop-deployer.password.txt
+   chmod 600 ~/.foundry/keystores/slop-deployer.password.txt
+   ```
 
-Visit `http://localhost:3000`
+   Verify:
 
----
+   ```bash
+   cast wallet address --account slop-deployer \
+     --password-file ~/.foundry/keystores/slop-deployer.password.txt
+   ```
 
-## API Reference
+   Both files live in `~/.foundry/keystores/` — outside the repo, never committed.
 
-All endpoints support CORS and return JSON. Base URL: `/api`
+### Per-chain deploy
 
-### Passkey Endpoints
+1. **Fund the deployer EOA** on the target chain. Total cost for both contracts is ~3.95M gas, so:
 
-#### `POST /api/passkey/check`
+   - Mainnet at 0.5–3 gwei → 0.002–0.012 ETH. Fund 0.005–0.01 ETH and you're comfortable.
+   - L2s (Base, Arbitrum, Optimism) → fractions of a cent. Send ~0.001 ETH and forget about it.
 
-Check which candidate passkey public keys are registered on a smart wallet. Used for API-only passkey login flows where you recover candidate keys from a signature.
+2. **Run the script:**
 
-**Request:**
+   ```bash
+   forge script packages/foundry/script/DeployDeterministic.s.sol \
+     --rpc-url <network> \
+     --account slop-deployer \
+     --password-file ~/.foundry/keystores/slop-deployer.password.txt \
+     --broadcast --ffi --verify
+   ```
 
-```json
-{
-  "wallet": "0x...",
-  "chainId": 8453,
-  "candidates": [
-    { "qx": "0x...", "qy": "0x..." },
-    { "qx": "0x...", "qy": "0x..." }
-  ]
-}
-```
+   `<network>` is any key from `[rpc_endpoints]` in `packages/foundry/foundry.toml` — `mainnet`, `base`, `arbitrum`, `optimism`, `sepolia`, `baseSepolia`, etc.
 
-**Response:**
+3. **Idempotent**: if the contracts already exist on that chain, the script is a no-op that just prints the addresses. Safe to re-run after a partial failure.
 
-```json
-{
-  "matches": [
-    {
-      "qx": "0x...",
-      "qy": "0x...",
-      "passkeyAddress": "0x...",
-      "isPasskey": true
-    }
-  ],
-  "wallet": "0x...",
-  "chainId": 8453
-}
-```
+4. **Verification** happens inline thanks to `--verify`. The Etherscan V2 endpoints in `foundry.toml` route to the right explorer per chain id. If verify times out, re-run manually:
 
-**Notes:**
+   ```bash
+   forge verify-contract 0x346Db4e22dDF585c8f97496820c2106aE277df1e Multisig --chain <chainId>
+   forge verify-contract 0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E MultisigFactory \
+     --chain <chainId> \
+     --constructor-args $(cast abi-encode "constructor(address)" 0x346Db4e22dDF585c8f97496820c2106aE277df1e)
+   ```
 
-- Maximum 10 candidates per request
-- `qx` and `qy` must be 32-byte hex strings (66 chars with `0x` prefix)
-- Supported chains: Base (8453), Ethereum Mainnet (1)
+5. **Frontend pickup**: a fresh `packages/foundry/deployments/<chainId>.json` is written automatically, and the broadcast receipts land under `packages/foundry/broadcast/DeployDeterministic.s.sol/<chainId>/`. Commit those so the frontend can find the factory.
 
----
+### Re-deploying (e.g. after a contract change)
 
-#### `POST /api/passkey/recover`
+Bump the salts in `DeployDeterministic.s.sol`:
 
-Recover passkey public key from raw WebAuthn assertion data. Enables API-only passkey login where the client sends raw WebAuthn data and the server recovers the public key and checks which one is registered on-chain.
-
-**Request:**
-
-```json
-{
-  "wallet": "0x...",
-  "chainId": 8453,
-  "signature": {
-    "r": "0x...",
-    "s": "0x..."
-  },
-  "authenticatorData": "0x...",
-  "clientDataJSON": "{\"type\":\"webauthn.get\",...}"
-}
+```solidity
+bytes32 constant IMPL_SALT    = keccak256("slop-multisig-impl-v2");
+bytes32 constant FACTORY_SALT = keccak256("slop-multisig-factory-v2");
 ```
 
-**Response (success):**
+Then re-run the deploy command. The new addresses will again be identical across chains, and the v1 deployment stays in place untouched.
 
-```json
-{
-  "qx": "0x...",
-  "qy": "0x...",
-  "passkeyAddress": "0x...",
-  "wallet": "0x...",
-  "chainId": 8453
-}
-```
+### Skipped chains
 
-**Response (no match found):**
+zkSync Era and other zkEVMs don't use canonical EVM bytecode; the Arachnid singleton may not exist there, and even if you redeployed it, the same source would compile to different bytecode and addresses. Skip them or deploy separately with chain-specific tooling.
 
-```json
-{
-  "error": "No registered passkey found among recovered candidates",
-  "candidates": [{ "qx": "0x...", "qy": "0x...", "passkeyAddress": "0x..." }],
-  "wallet": "0x...",
-  "chainId": 8453
-}
-```
-
-**Client example:**
-
-```typescript
-const assertionResponse = assertion.response as AuthenticatorAssertionResponse;
-const { r, s } = parseAsn1Signature(assertionResponse.signature);
-
-const response = await fetch(`${SLOPWALLET_API}/passkey/recover`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    wallet: smartContractWallet,
-    chainId: 8453,
-    signature: {
-      r: "0x" + r.toString(16).padStart(64, "0"),
-      s: "0x" + s.toString(16).padStart(64, "0"),
-    },
-    authenticatorData:
-      "0x" +
-      Array.from(new Uint8Array(assertionResponse.authenticatorData))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(""),
-    clientDataJSON: new TextDecoder().decode(assertionResponse.clientDataJSON),
-  }),
-});
-```
-
-**Notes:**
-
-- Server computes `sha256(authenticatorData || sha256(clientDataJSON))` and recovers up to 4 candidate public keys
-- Each candidate is checked against the smart wallet's `isPasskey()` function
-- Returns 404 with all candidates if no registered passkey matches
-- Supported chains: Base (8453), Ethereum Mainnet (1)
-
----
-
-#### `GET /api/nonce`
-
-Get the current nonce for a passkey on a smart wallet.
-
-**Query params:**
-
-- `wallet` (required): Smart wallet address
-- `chainId` (optional): Chain ID (default: 8453)
-- `passkey`: Passkey address, OR
-- `qx` + `qy`: Public key coordinates
-
-**Response:**
-
-```json
-{
-  "nonce": "1",
-  "passkeyAddress": "0x...",
-  "wallet": "0x...",
-  "chainId": 8453
-}
-```
-
----
-
-#### `POST /api/facilitate`
-
-Submit a gasless meta-transaction signed by a passkey. The facilitator pays the gas.
-
-**Request:**
-
-```json
-{
-  "smartWalletAddress": "0x...",
-  "chainId": 8453,
-  "isBatch": false,
-  "calls": [{ "target": "0x...", "value": "0", "data": "0x..." }],
-  "qx": "0x...",
-  "qy": "0x...",
-  "deadline": "1234567890",
-  "auth": {
-    "r": "0x...",
-    "s": "0x...",
-    "challengeIndex": "36",
-    "typeIndex": "1",
-    "authenticatorData": "0x...",
-    "clientDataJSON": "..."
-  }
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "txHash": "0x...",
-  "blockNumber": "12345",
-  "gasUsed": "50000"
-}
-```
-
-**Notes:**
-
-- Only whitelisted smart wallets are supported
-- Verifies WebAuthn signature cryptographically before submitting
-
----
-
-### Balance & Token Endpoints
-
-#### `GET /api/balances`
-
-Get ETH and USDC balances for an address on Base.
-
-**Query params:**
-
-- `address` (required): Ethereum address
-
-**Response:**
-
-```json
-{
-  "address": "0x...",
-  "balances": {
-    "eth": {
-      "raw": "1000000000000000000",
-      "formatted": "1.0",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "usdc": {
-      "raw": "1000000",
-      "formatted": "1.0",
-      "symbol": "USDC",
-      "decimals": 6
-    }
-  }
-}
-```
-
----
-
-#### `POST /api/transfer`
-
-Generate calldata for an ETH or USDC transfer.
-
-**Request:**
-
-```json
-{
-  "asset": "ETH",
-  "amount": "0.1",
-  "to": "0x..."
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "asset": "ETH",
-  "amount": "0.1",
-  "to": "0x...",
-  "call": {
-    "target": "0x...",
-    "value": "100000000000000000",
-    "data": "0x"
-  }
-}
-```
-
----
-
-#### `POST /api/prepare-transfer`
-
-Consolidate transfer preparation into a single call. Combines what `/transfer` and `/nonce` do, plus computes the challenge hash for WebAuthn signing. This enables clients to prepare a transfer without a viem dependency.
-
-**Request:**
-
-```json
-{
-  "chainId": 8453,
-  "wallet": "0xSmartWalletAddress",
-  "qx": "0x...",
-  "qy": "0x...",
-  "asset": "USDC",
-  "amount": "10.00",
-  "to": "0xRecipientAddress"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "call": {
-    "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "value": "0",
-    "data": "0xa9059cbb..."
-  },
-  "nonce": "5",
-  "deadline": "1734567890",
-  "challengeHash": "0x..."
-}
-```
-
-**Logic:**
-
-1. Looks up the USDC contract address for the given `chainId`
-2. Encodes the ERC20 `transfer(to, amount)` calldata (or native ETH transfer)
-3. Derives passkey address from `qx`/`qy` and fetches the current nonce from the wallet
-4. Sets `deadline` to now + 1 hour
-5. Computes `challengeHash` using:
+## Contracts at a glance
 
 ```
-keccak256(concat([
-  toHex(chainId, { size: 32 }),
-  wallet,                        // 20 bytes
-  target,                        // 20 bytes
-  toHex(value, { size: 32 }),    // 0 for ERC20 transfers
-  data,                          // variable length transfer calldata
-  toHex(nonce, { size: 32 }),
-  toHex(deadline, { size: 32 }),
-]))
+MultisigFactory.createMultisig(eoaSigners, qxs, qys, credentialIds, threshold, salt)
+   ↓ CREATE2 (effectiveSalt = keccak256(msg.sender, salt))
+Multisig (EIP-1167 clone)
+   ├── execTransaction(target, value, data, deadline, signatures[])      ← nonReentrant
+   ├── execBatchTransaction(calls[], deadline, signatures[])             ← nonReentrant
+   ├── isValidSignature(hash, abi.encode(signatures[]))   → ERC-1271 magic value
+   ├── addEoaSigner(addr)       ┐
+   ├── addPasskeySigner(qx,qy,credId)   ├ onlySelf — only callable via execTransaction
+   ├── removeSigner(addr)       │      reaching threshold
+   └── changeThreshold(uint256) ┘
 ```
 
-This is the same hash format the smart wallet contract expects for signature verification.
-
-**Notes:**
-
-- Supported chains: Base (8453), Ethereum Mainnet (1)
-- Supported assets: ETH, USDC
-- USDC uses 6 decimals, ETH uses 18 decimals
-
----
-
-#### `POST /api/prepare-call`
-
-Prepare arbitrary transaction data for passkey signing. Supports both single calls (from `eth_sendTransaction`) and batch calls (from `wallet_sendCalls` / EIP-5792). This is the generic version of `/api/prepare-transfer` for any contract interaction.
-
-**Request (single call):**
-
-```json
-{
-  "chainId": 8453,
-  "wallet": "0xSmartWalletAddress",
-  "qx": "0x...",
-  "qy": "0x...",
-  "target": "0xContractAddress",
-  "value": "0",
-  "data": "0xa9059cbb..."
-}
-```
-
-**Request (batch calls):**
-
-```json
-{
-  "chainId": 8453,
-  "wallet": "0xSmartWalletAddress",
-  "qx": "0x...",
-  "qy": "0x...",
-  "calls": [
-    { "target": "0xTokenContract", "value": "0", "data": "0x095ea7b3..." },
-    { "target": "0xSwapRouter", "value": "0", "data": "0x414bf389..." }
-  ]
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "isBatch": false,
-  "calls": [{ "target": "0x...", "value": "0", "data": "0x..." }],
-  "nonce": "5",
-  "deadline": "1734567890",
-  "challengeHash": "0x..."
-}
-```
-
-**Logic:**
-
-1. Accepts either a single call (`target`, `value`, `data`) or batch calls (`calls` array)
-2. Derives passkey address from `qx`/`qy` and fetches the current nonce
-3. Sets `deadline` to now + 1 hour
-4. Computes `challengeHash`:
-   - Single tx: `keccak256(abi.encodePacked(chainId, wallet, target, value, data, nonce, deadline))`
-   - Batch tx: `keccak256(abi.encodePacked(chainId, wallet, keccak256(abi.encode(calls)), nonce, deadline))`
-
-**Use case:**
-
-This endpoint enables external clients (mobile apps, CLI tools) to prepare WalletConnect transactions for passkey signing without needing viem or complex client-side logic.
-
-**Notes:**
-
-- Supported chains: Base (8453), Ethereum Mainnet (1)
-- Single-item `calls` arrays are treated as single transactions (not batch)
-- The `challengeHash` is what the passkey signs via WebAuthn
-
----
-
-### Swap Endpoints
-
-#### `GET /api/swap/quote`
-
-Get a quote for swapping ETH <-> USDC on Base via Uniswap V3.
-
-**Query params:**
-
-- `from` (required): "ETH" or "USDC"
-- `to` (required): "ETH" or "USDC"
-- `amountIn` (required): Amount to swap (human readable)
-
-**Response:**
-
-```json
-{
-  "from": "ETH",
-  "to": "USDC",
-  "amountIn": "0.1",
-  "amountInRaw": "100000000000000000",
-  "amountOut": "350.25",
-  "amountOutRaw": "350250000",
-  "pricePerToken": "3502.50",
-  "fee": "0.05%",
-  "gasEstimate": "150000"
-}
-```
-
----
-
-#### `POST /api/swap`
-
-Generate calldata for an ETH <-> USDC swap.
-
-**Request:**
-
-```json
-{
-  "from": "ETH",
-  "to": "USDC",
-  "amountIn": "0.1",
-  "amountOutMinimum": "340",
-  "recipient": "0x..."
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "from": "ETH",
-  "to": "USDC",
-  "amountIn": "0.1",
-  "amountOutMinimum": "340",
-  "recipient": "0x...",
-  "calls": [
-    { "target": "0x...", "value": "100000000000000000", "data": "0x..." }
-  ]
-}
-```
-
-**Notes:**
-
-- USDC -> ETH requires 3 calls (approve, swap, unwrap)
-- ETH -> USDC requires 1 call
-
----
-
-### ENS Endpoint
-
-#### `GET /api/ens`
-
-Resolve ENS names to addresses or addresses to ENS names.
-
-**Query params:**
-
-- `query` (required): ENS name (e.g., `vitalik.eth`) or Ethereum address
-
-**Response (forward resolution):**
-
-```json
-{
-  "query": "vitalik.eth",
-  "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-  "ensName": "vitalik.eth",
-  "type": "forward"
-}
-```
-
-**Response (reverse resolution):**
-
-```json
-{
-  "query": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-  "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-  "ensName": "vitalik.eth",
-  "type": "reverse"
-}
-```
-
----
-
-### AI Agent Endpoint
-
-#### `POST /api/agent`
-
-Natural language transaction generation using Claude.
-
-**Request:**
-
-```json
-{
-  "prompt": "Send 0.1 ETH to vitalik.eth",
-  "walletAddress": "0x..."
-}
-```
-
-**Response (transaction):**
-
-```json
-{
-  "calls": [{ "target": "0x...", "value": "100000000000000000", "data": "0x" }]
-}
-```
-
-**Response (information):**
-
-```json
-{
-  "response": "Your current balance is 1.5 ETH and 500 USDC."
-}
-```
-
-**Notes:**
-
-- Requires `ANTHROPIC_API_KEY` environment variable
-- Automatically fetches wallet holdings for context
-
----
-
-### Transaction Analysis Endpoint
-
-#### `POST /api/unblind`
-
-Analyze a transaction or message signature for security risks using Unblind.
-
-**Request (transaction):**
-
-```json
-{
-  "type": "transaction",
-  "chainId": "8453",
-  "from": "0x...",
-  "to": "0x...",
-  "value": "0x0",
-  "data": "0x..."
-}
-```
-
-**Request (message):**
-
-```json
-{
-  "type": "message",
-  "signatureMethod": "eth_signTypedData_v4",
-  "from": "0x...",
-  "data": { ... }
-}
-```
-
-**Response:**
-
-```json
-{
-  "analysis": "This transaction transfers 100 USDC to 0x...",
-  "warnings": []
-}
-```
-
----
-
-## Passkey Public Key Recovery
-
-When logging in with an existing passkey, WebAuthn only returns a signature - not the public key. To derive `qx`/`qy`:
-
-1. From one ECDSA signature on P-256, recover up to 4 candidate public keys
-2. Check which candidate is registered on-chain via `/api/passkey/check`
-3. If no match, get a second signature - only one candidate will verify both
-
-**Libraries needed:**
-
-```typescript
-import { p256 } from "@noble/curves/nist.js";
-import { sha256 } from "@noble/hashes/sha2.js";
-
-// Recover from signature
-const sig = new p256.Signature(r, s, recoveryBit);
-const pubKey = sig.recoverPublicKey(messageHash);
-```
-
-See `packages/nextjs/utils/passkey.ts` for the full implementation.
-
----
+Known unaddressed brittleness: M-of-M setups and 1-of-1 setups are allowed. Lose a key and the multisig is stuck. This is an opt-in tradeoff — guard against it in the UI, not the contract.
 
 ## Contributing
 
-See [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md)
+See [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md).
