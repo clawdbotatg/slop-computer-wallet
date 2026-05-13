@@ -4,6 +4,14 @@
 
 Built with Scaffold-ETH 2 + Foundry.
 
+## Quick links
+
+- **Integration guide**: [`INTEGRATION.md`](INTEGRATION.md) — call patterns, signature format, viem snippets, ERC-1271, error reference. Read this first if you're wiring a frontend or service to the factory.
+- **ABIs**: [`abi/Multisig.json`](abi/Multisig.json) · [`abi/MultisigFactory.json`](abi/MultisigFactory.json)
+- **Live `MultisigFactory`**: [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://etherscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) — same address on every supported chain
+- **Live `Multisig` implementation**: [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://etherscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code)
+- Chains: Ethereum mainnet (1), Base (8453) — see [§Deployed contracts](#deployed-contracts) for explorer links.
+
 ## What's here
 
 - `packages/foundry/contracts/Multisig.sol` — the multisig. Mix EOA and passkey (WebAuthn / secp256r1) signers, configurable threshold, self-governed admin (add/remove signer + change threshold via `execTransaction`), ERC-1271 `isValidSignature`, transient-storage reentrancy guard.
