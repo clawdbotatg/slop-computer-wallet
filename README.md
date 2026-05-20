@@ -10,7 +10,7 @@ Built with Scaffold-ETH 2 + Foundry.
 - **ABIs**: [`abi/Multisig.json`](abi/Multisig.json) · [`abi/MultisigFactory.json`](abi/MultisigFactory.json)
 - **Live `MultisigFactory`**: [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://etherscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) — same address on every supported chain
 - **Live `Multisig` implementation**: [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://etherscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code)
-- Chains: Ethereum mainnet (1), Base (8453) — see [§Deployed contracts](#deployed-contracts) for explorer links.
+- Chains: Ethereum mainnet (1), Base (8453), Gnosis (100) — see [§Deployed contracts](#deployed-contracts) for explorer links.
 
 ## What's here
 
@@ -52,6 +52,7 @@ Both contracts deploy via the [Arachnid CREATE2 singleton](https://github.com/Ar
 |---|---|---|
 | Ethereum mainnet (1) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://etherscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://etherscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) |
 | Base (8453) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://basescan.org/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://basescan.org/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) |
+| Gnosis (100) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://gnosisscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://gnosisscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) |
 
 Both contracts are verified on the respective explorer (click the addresses to read the source). On every chain, `Factory.implementation()` returns the impl address above.
 
@@ -61,8 +62,10 @@ Both contracts are verified on the respective explorer (click the addresses to r
 |---|---|
 | `packages/foundry/deployments/1.json` | Mainnet address map (used by the frontend) |
 | `packages/foundry/deployments/8453.json` | Base address map (used by the frontend) |
+| `packages/foundry/deployments/100.json` | Gnosis address map (used by the frontend) |
 | `packages/foundry/broadcast/DeployDeterministic.s.sol/1/run-latest.json` | Mainnet tx receipts |
 | `packages/foundry/broadcast/DeployDeterministic.s.sol/8453/run-latest.json` | Base tx receipts |
+| `packages/foundry/broadcast/DeployDeterministic.s.sol/100/run-latest.json` | Gnosis tx receipts |
 | `packages/foundry/script/DeployDeterministic.s.sol` | The script that produced all of the above |
 
 ### Salts used

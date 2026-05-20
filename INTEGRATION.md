@@ -11,7 +11,7 @@ Everything a frontend / backend / bot needs to talk to the live `MultisigFactory
 | `Multisig` (implementation) | [`0x346Db4e22dDF585c8f97496820c2106aE277df1e`](https://etherscan.io/address/0x346Db4e22dDF585c8f97496820c2106aE277df1e#code) | [`abi/Multisig.json`](abi/Multisig.json) |
 | `MultisigFactory` | [`0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E`](https://etherscan.io/address/0x21f03d2AdaEAaFe75e0C721bD1eBbC4C9aF9602E#code) | [`abi/MultisigFactory.json`](abi/MultisigFactory.json) |
 
-Same addresses on **Ethereum mainnet (1)** and **Base (8453)**. They will be the same on every chain we deploy to going forward (as long as `Multisig.sol` / `MultisigFactory.sol` don't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
+Same addresses on **Ethereum mainnet (1)**, **Base (8453)**, and **Gnosis (100)**. They will be the same on every chain we deploy to going forward (as long as `Multisig.sol` / `MultisigFactory.sol` don't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
 
 Pinned ABI URLs (commit-stable):
 - `https://raw.githubusercontent.com/clawdbotatg/slop-computer-wallet/main/abi/Multisig.json`
