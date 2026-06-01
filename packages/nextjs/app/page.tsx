@@ -67,9 +67,9 @@ const Home: NextPage = () => {
     if (!canDeploy) return;
     try {
       await writeFactoryAsync({
-        // args: eoaSigners, passkeyQxs, passkeyQys, credentialIdHashes, contractSigners, threshold, salt
+        // args: accounts, passkeyQxs, passkeyQys, credentialIdHashes, threshold, salt
         functionName: "createMultisig",
-        args: [validSigners as `0x${string}`[], [], [], [], [], BigInt(thresholdNum), saltHex],
+        args: [validSigners as `0x${string}`[], [], [], [], BigInt(thresholdNum), saltHex],
       });
       refetchPredicted();
     } catch (e) {

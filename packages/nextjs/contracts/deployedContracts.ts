@@ -20,20 +20,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -383,7 +370,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -403,11 +390,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -418,7 +400,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -776,38 +758,6 @@ const deployedContracts = {
           type: "error",
           name: "AlreadySigner",
           inputs: [],
-        },
-        {
-          type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
         },
         {
           type: "error",
@@ -907,7 +857,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -925,11 +875,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -1011,13 +956,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -1061,20 +1000,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -1424,7 +1350,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -1444,11 +1370,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -1459,7 +1380,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -1820,38 +1741,6 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-        },
-        {
-          type: "error",
           name: "EmptyBatch",
           inputs: [],
         },
@@ -1948,7 +1837,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -1966,11 +1855,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -2052,13 +1936,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -2102,20 +1980,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -2465,7 +2330,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -2485,11 +2350,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -2500,7 +2360,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -2861,38 +2721,6 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-        },
-        {
-          type: "error",
           name: "EmptyBatch",
           inputs: [],
         },
@@ -2989,7 +2817,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -3007,11 +2835,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -3093,13 +2916,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -3143,20 +2960,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -3506,7 +3310,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -3526,11 +3330,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -3541,7 +3340,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -3899,38 +3698,6 @@ const deployedContracts = {
           type: "error",
           name: "AlreadySigner",
           inputs: [],
-        },
-        {
-          type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
         },
         {
           type: "error",
@@ -4029,7 +3796,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -4047,11 +3814,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -4133,13 +3895,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -4169,7 +3925,7 @@ const deployedContracts = {
   },
   8453: {
     Multisig: {
-      address: "0x20d8866d59aa288966e515f3c6ca886555a2ae11",
+      address: "0x5be7f750cc271dbf0c6027a45bfe78b99504ce3a",
       abi: [
         {
           type: "constructor",
@@ -4182,20 +3938,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -4545,7 +4288,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -4565,11 +4308,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -4580,7 +4318,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -4938,38 +4676,6 @@ const deployedContracts = {
           type: "error",
           name: "AlreadySigner",
           inputs: [],
-        },
-        {
-          type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
         },
         {
           type: "error",
@@ -5048,10 +4754,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 46777069,
+      deployedOnBlock: 46779400,
     },
     MultisigFactory: {
-      address: "0x695123afa4e2c4f948e977e1974ac80372044f31",
+      address: "0xfcdee21865b60c2700c23cd946316ceda0f215b5",
       abi: [
         {
           type: "constructor",
@@ -5069,7 +4775,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -5087,11 +4793,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -5173,13 +4874,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -5205,7 +4900,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 46777069,
+      deployedOnBlock: 46779400,
     },
   },
   31337: {
@@ -5223,20 +4918,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -5586,7 +5268,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -5606,11 +5288,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -5621,7 +5298,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -5979,38 +5656,6 @@ const deployedContracts = {
           type: "error",
           name: "AlreadySigner",
           inputs: [],
-        },
-        {
-          type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
         },
         {
           type: "error",
@@ -6110,7 +5755,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -6128,11 +5773,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -6214,13 +5854,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",
@@ -6264,20 +5898,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "addContractSigner",
-          inputs: [
-            {
-              name: "signer",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "addEoaSigner",
+          name: "addAccountSigner",
           inputs: [
             {
               name: "signer",
@@ -6627,7 +6248,7 @@ const deployedContracts = {
           name: "initialize",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -6647,11 +6268,6 @@ const deployedContracts = {
               internalType: "bytes32[]",
             },
             {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
-            },
-            {
               name: "_threshold",
               type: "uint256",
               internalType: "uint256",
@@ -6662,7 +6278,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "isContractSigner",
+          name: "isAccountSigner",
           inputs: [
             {
               name: "addr",
@@ -7023,38 +6639,6 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "ContractSignerHasNoCode",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignature",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureLength",
-          inputs: [
-            {
-              name: "length",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ECDSAInvalidSignatureS",
-          inputs: [
-            {
-              name: "s",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-        },
-        {
-          type: "error",
           name: "EmptyBatch",
           inputs: [],
         },
@@ -7151,7 +6735,7 @@ const deployedContracts = {
           name: "createMultisig",
           inputs: [
             {
-              name: "eoaSigners",
+              name: "accounts",
               type: "address[]",
               internalType: "address[]",
             },
@@ -7169,11 +6753,6 @@ const deployedContracts = {
               name: "credentialIdHashes",
               type: "bytes32[]",
               internalType: "bytes32[]",
-            },
-            {
-              name: "contractSigners",
-              type: "address[]",
-              internalType: "address[]",
             },
             {
               name: "threshold",
@@ -7255,13 +6834,7 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "eoaSigners",
-              type: "address[]",
-              indexed: false,
-              internalType: "address[]",
-            },
-            {
-              name: "contractSigners",
+              name: "accounts",
               type: "address[]",
               indexed: false,
               internalType: "address[]",

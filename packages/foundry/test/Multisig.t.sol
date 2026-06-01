@@ -35,14 +35,13 @@ contract MultisigTest is Test {
         implementation = new Multisig();
         factory = new MultisigFactory(address(implementation));
 
-        address[] memory eoas = new address[](3);
-        eoas[0] = aliceAddr;
-        eoas[1] = bobAddr;
-        eoas[2] = carolAddr;
+        address[] memory accounts = new address[](3);
+        accounts[0] = aliceAddr;
+        accounts[1] = bobAddr;
+        accounts[2] = carolAddr;
         bytes32[] memory empty = new bytes32[](0);
-        address[] memory noContracts = new address[](0);
 
-        address ms = factory.createMultisig(eoas, empty, empty, empty, noContracts, 2, bytes32(uint256(1)));
+        address ms = factory.createMultisig(accounts, empty, empty, empty, 2, bytes32(uint256(1)));
         wallet = Multisig(payable(ms));
         vm.deal(address(wallet), 10 ether);
     }
@@ -60,22 +59,20 @@ contract MultisigTest is Test {
     }
 
     function test_Initialize_RevertOnBadThreshold() public {
-        address[] memory eoas = new address[](2);
-        eoas[0] = aliceAddr;
-        eoas[1] = bobAddr;
+        address[] memory accounts = new address[](2);
+        accounts[0] = aliceAddr;
+        accounts[1] = bobAddr;
         bytes32[] memory empty = new bytes32[](0);
-        address[] memory noContracts = new address[](0);
         vm.expectRevert(Multisig.InvalidThreshold.selector);
-        factory.createMultisig(eoas, empty, empty, empty, noContracts, 3, bytes32(uint256(2)));
+        factory.createMultisig(accounts, empty, empty, empty, 3, bytes32(uint256(2)));
     }
 
     function test_CannotInitializeImplementationDirectly() public {
-        address[] memory eoas = new address[](1);
-        eoas[0] = aliceAddr;
+        address[] memory accounts = new address[](1);
+        accounts[0] = aliceAddr;
         bytes32[] memory empty = new bytes32[](0);
-        address[] memory noContracts = new address[](0);
         vm.expectRevert();
-        implementation.initialize(eoas, empty, empty, empty, noContracts, 1);
+        implementation.initialize(accounts, empty, empty, empty, 1);
     }
 
     // ============ Single exec ============
@@ -188,14 +185,15 @@ contract MultisigTest is Test {
 
     // ============ Self-governed admin ============
 
-    function test_AddEoaSigner_ViaExec() public {
-        bytes memory data = abi.encodeWithSelector(Multisig.addEoaSigner.selector, eveAddr);
+    function test_AddAccountSigner_ViaExec() public {
+        bytes memory data = abi.encodeWithSelector(Multisig.addAccountSigner.selector, eveAddr);
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(address(wallet), 0, data, deadline);
         Multisig.Signature[] memory sigs = _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr);
 
         wallet.execTransaction(address(wallet), 0, data, deadline, sigs);
         assertTrue(_isSigner(eveAddr));
+        assertTrue(wallet.isAccountSigner(eveAddr));
         assertEq(wallet.signerCount(), 4);
     }
 
@@ -238,7 +236,7 @@ contract MultisigTest is Test {
 
     function test_DirectAdminCall_Reverts() public {
         vm.expectRevert(Multisig.NotSelf.selector);
-        wallet.addEoaSigner(eveAddr);
+        wallet.addAccountSigner(eveAddr);
         vm.expectRevert(Multisig.NotSelf.selector);
         wallet.removeSigner(aliceAddr);
         vm.expectRevert(Multisig.NotSelf.selector);
@@ -246,8 +244,6 @@ contract MultisigTest is Test {
     }
 
     // ============ ERC-1271 ============
-    // ERC-1271 verifies signatures over the hash as-passed (no personal_sign prefix),
-    // so callers like Permit2 / Seaport using EIP-712 digests work.
 
     function test_IsValidSignature_ThresholdMet() public view {
         bytes32 msgHash = keccak256("hello multisig");
@@ -280,28 +276,27 @@ contract MultisigTest is Test {
         assertEq(wallet.isValidSignature(msgHash, packed), ERC1271_INVALID);
     }
 
-    function test_IsValidSignature_AcceptsPersonalSignPrefixed() public view {
-        // v3: ERC-1271 accepts EITHER a raw-digest signature (EIP-712 / Permit2) OR a
-        // personal_sign-prefixed one (what wallet EOAs like MetaMask produce). This is what
-        // lets a wallet EOA be a signer of a nested Multisig without raw-hash signing.
+    function test_IsValidSignature_AcceptsRawAndPersonalSign() public view {
+        // Account signers validate via ECDSA accepting EITHER the raw digest (EIP-712 / Permit2)
+        // OR the personal_sign-prefixed one (what wallet EOAs like MetaMask produce). Both pass.
         bytes32 msgHash = keccak256("prefixed");
-        Multisig.Signature[] memory sigs = _twoEoaSigs(msgHash, alicePk, aliceAddr, bobPk, bobAddr);
-        bytes memory packed = abi.encode(sigs);
-        assertEq(wallet.isValidSignature(msgHash, packed), ERC1271_MAGIC);
+        Multisig.Signature[] memory prefixed = _twoEoaSigs(msgHash, alicePk, aliceAddr, bobPk, bobAddr);
+        assertEq(wallet.isValidSignature(msgHash, abi.encode(prefixed)), ERC1271_MAGIC);
+        Multisig.Signature[] memory raw = _twoEoaSigsRaw(msgHash, alicePk, aliceAddr, bobPk, bobAddr);
+        assertEq(wallet.isValidSignature(msgHash, abi.encode(raw)), ERC1271_MAGIC);
     }
 
     // ============ Audit-driven additions ============
 
     function test_M1_Initialize_RevertOnZeroPasskeyCoordinates() public {
-        address[] memory eoas = new address[](1);
-        eoas[0] = aliceAddr;
+        address[] memory accounts = new address[](1);
+        accounts[0] = aliceAddr;
         bytes32[] memory qxs = new bytes32[](1);
         bytes32[] memory qys = new bytes32[](1);
         bytes32[] memory creds = new bytes32[](1);
-        address[] memory noContracts = new address[](0);
         // qx = qy = 0 should be rejected.
         vm.expectRevert(Multisig.InvalidSigner.selector);
-        factory.createMultisig(eoas, qxs, qys, creds, noContracts, 1, bytes32(uint256(99)));
+        factory.createMultisig(accounts, qxs, qys, creds, 1, bytes32(uint256(99)));
     }
 
     function test_L1_RemoveSigner_ClearsCredentialIdMapping() public {
@@ -333,18 +328,17 @@ contract MultisigTest is Test {
     }
 
     function test_L2_Factory_DifferentDeployersGetDifferentAddresses() public {
-        address[] memory eoas = new address[](1);
-        eoas[0] = aliceAddr;
+        address[] memory accounts = new address[](1);
+        accounts[0] = aliceAddr;
         bytes32[] memory empty = new bytes32[](0);
-        address[] memory noContracts = new address[](0);
         bytes32 salt = bytes32(uint256(7));
 
         address aliceDeployed;
         address bobDeployed;
         vm.prank(aliceAddr);
-        aliceDeployed = factory.createMultisig(eoas, empty, empty, empty, noContracts, 1, salt);
+        aliceDeployed = factory.createMultisig(accounts, empty, empty, empty, 1, salt);
         vm.prank(bobAddr);
-        bobDeployed = factory.createMultisig(eoas, empty, empty, empty, noContracts, 1, salt);
+        bobDeployed = factory.createMultisig(accounts, empty, empty, empty, 1, salt);
 
         assertTrue(aliceDeployed != bobDeployed, "same salt + different deployer should yield different addresses");
         assertEq(factory.getMultisigAddress(aliceAddr, salt), aliceDeployed);
@@ -363,92 +357,92 @@ contract MultisigTest is Test {
     }
 
     function test_C_L3_ExecTransactionIsNonReentrant() public {
-        // Deploy a malicious target that calls back into execTransaction during its handler.
-        // The outer exec's nonReentrant must cause the inner call to revert; with _bubbleRevert
-        // that revert propagates to the outer call.
         ReentrantTarget bad = new ReentrantTarget(address(wallet));
 
-        // Pre-sign an inner exec (target = address(this), trivial) for nonce 1 — the value the
-        // nonce will hold AFTER the outer exec increments. The malicious target tries to invoke it.
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory innerData = "";
-        // The inner exec hash is computed against nonce=1 because the outer increments before calling.
         bytes32 innerHash = keccak256(
             abi.encode(block.chainid, address(wallet), uint256(1), deadline, address(this), uint256(0), keccak256(""))
         );
         Multisig.Signature[] memory innerSigs = _twoEoaSigs(innerHash, alicePk, aliceAddr, bobPk, bobAddr);
         bad.arm(address(this), 0, innerData, deadline, innerSigs);
 
-        // Outer exec: ask the multisig to call the malicious target.
         bytes memory outerData = abi.encodeWithSelector(ReentrantTarget.trigger.selector);
         bytes32 outerHash = wallet.getExecHash(address(bad), 0, outerData, deadline);
         Multisig.Signature[] memory outerSigs = _twoEoaSigs(outerHash, alicePk, aliceAddr, bobPk, bobAddr);
 
-        // The inner re-entry hits the transient reentrancy lock and reverts; the outer bubbles it up.
         vm.expectRevert();
         wallet.execTransaction(address(bad), 0, outerData, deadline, outerSigs);
     }
 
     function test_B_L1_FactoryRejectsCodelessImplementation() public {
-        // Passing an EOA (no code) to the factory constructor should revert.
         vm.expectRevert(MultisigFactory.ImplementationHasNoCode.selector);
         new MultisigFactory(aliceAddr);
     }
 
-    // ============ Contract (ERC-1271) signers / nested multisigs ============
+    // ============ Account (ERC-1271) signers / nested multisigs ============
 
-    /// @dev Deploy a 2-of-2 child multisig owned by alice + bob.
+    /// @dev Deploy a 2-of-2 child multisig owned by alice + bob (both account signers).
     function _deployChild(bytes32 salt) internal returns (Multisig child) {
-        address[] memory eoas = new address[](2);
-        eoas[0] = aliceAddr;
-        eoas[1] = bobAddr;
+        address[] memory accounts = new address[](2);
+        accounts[0] = aliceAddr;
+        accounts[1] = bobAddr;
         bytes32[] memory empty = new bytes32[](0);
-        address[] memory noContracts = new address[](0);
-        child = Multisig(payable(factory.createMultisig(eoas, empty, empty, empty, noContracts, 2, salt)));
+        child = Multisig(payable(factory.createMultisig(accounts, empty, empty, empty, 2, salt)));
     }
 
+    /// @dev Build an Account signature whose data is an ERC-1271 blob (the contract signer's own
+    ///      Signature[]). The contract tries ECDSA first (fails — not 65 bytes) then ERC-1271.
     function _contractSig(address signer, Multisig.Signature[] memory inner)
         internal
         pure
         returns (Multisig.Signature memory)
     {
-        return Multisig.Signature({ sigType: Multisig.SignerType.ERC1271, signer: signer, data: abi.encode(inner) });
+        return Multisig.Signature({ sigType: Multisig.SignerType.Account, signer: signer, data: abi.encode(inner) });
     }
 
-    /// @dev A parent with [eve (EOA), child (ERC-1271)] can be driven to execute when both approve:
-    ///      eve signs the prefixed digest, and the child validates via its own alice+bob signatures.
+    /// @dev Deploy a parent with [eve, child] both as account signers, threshold 2.
+    function _deployParent(Multisig child, bytes32 salt) internal returns (Multisig parent) {
+        address[] memory accounts = new address[](2);
+        accounts[0] = eveAddr;
+        accounts[1] = address(child);
+        bytes32[] memory empty = new bytes32[](0);
+        parent = Multisig(payable(factory.createMultisig(accounts, empty, empty, empty, 2, salt)));
+    }
+
+    function _sortPair(Multisig.Signature memory a, address aAddr, Multisig.Signature memory b, address bAddr)
+        internal
+        pure
+        returns (Multisig.Signature[] memory sigs)
+    {
+        sigs = new Multisig.Signature[](2);
+        if (aAddr < bAddr) {
+            sigs[0] = a;
+            sigs[1] = b;
+        } else {
+            sigs[0] = b;
+            sigs[1] = a;
+        }
+    }
+
+    /// @dev Parent [eve, child] executes: eve signs (account/personal_sign), child contributes its
+    ///      own alice+bob signatures via ERC-1271. Child sub-signers sign the RAW parent hash here.
     function test_NestedMultisig_ExecTransaction() public {
         Multisig child = _deployChild(bytes32(uint256(0xC417D)));
-
-        address[] memory eoas = new address[](1);
-        eoas[0] = eveAddr;
-        bytes32[] memory empty = new bytes32[](0);
-        address[] memory contracts = new address[](1);
-        contracts[0] = address(child);
-        Multisig parent =
-            Multisig(payable(factory.createMultisig(eoas, empty, empty, empty, contracts, 2, bytes32(uint256(0xDAD)))));
+        Multisig parent = _deployParent(child, bytes32(uint256(0xDAD)));
         vm.deal(address(parent), 10 ether);
 
-        assertTrue(parent.isContractSigner(address(child)));
+        assertTrue(parent.isAccountSigner(address(child)));
 
         address recipient = makeAddr("nested-recipient");
         uint256 amount = 1 ether;
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 parentHash = parent.getExecHash(recipient, amount, "", deadline);
 
-        // The child validates over the RAW parent hash (ERC-1271 has no personal_sign prefix).
         Multisig.Signature[] memory childInner = _twoEoaSigsRaw(parentHash, alicePk, aliceAddr, bobPk, bobAddr);
-        Multisig.Signature memory eveSig = _eoaSig(parentHash, evePk, eveAddr); // eve signs prefixed (exec path)
+        Multisig.Signature memory eveSig = _eoaSig(parentHash, evePk, eveAddr);
         Multisig.Signature memory childSig = _contractSig(address(child), childInner);
-
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (eveAddr < address(child)) {
-            sigs[0] = eveSig;
-            sigs[1] = childSig;
-        } else {
-            sigs[0] = childSig;
-            sigs[1] = eveSig;
-        }
+        Multisig.Signature[] memory sigs = _sortPair(eveSig, eveAddr, childSig, address(child));
 
         parent.execTransaction(recipient, amount, "", deadline, sigs);
         assertEq(recipient.balance, amount);
@@ -458,43 +452,22 @@ contract MultisigTest is Test {
     /// @dev A contract signer also satisfies the parent's own ERC-1271 isValidSignature.
     function test_NestedMultisig_IsValidSignature() public {
         Multisig child = _deployChild(bytes32(uint256(0xC418D)));
-        address[] memory eoas = new address[](1);
-        eoas[0] = eveAddr;
-        bytes32[] memory empty = new bytes32[](0);
-        address[] memory contracts = new address[](1);
-        contracts[0] = address(child);
-        Multisig parent =
-            Multisig(payable(factory.createMultisig(eoas, empty, empty, empty, contracts, 2, bytes32(uint256(0xDAE)))));
+        Multisig parent = _deployParent(child, bytes32(uint256(0xDAE)));
 
         bytes32 msgHash = keccak256("nested erc-1271");
         Multisig.Signature[] memory childInner = _twoEoaSigsRaw(msgHash, alicePk, aliceAddr, bobPk, bobAddr);
         Multisig.Signature memory eveSig = _eoaSigRaw(msgHash, evePk, eveAddr);
         Multisig.Signature memory childSig = _contractSig(address(child), childInner);
+        Multisig.Signature[] memory sigs = _sortPair(eveSig, eveAddr, childSig, address(child));
 
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (eveAddr < address(child)) {
-            sigs[0] = eveSig;
-            sigs[1] = childSig;
-        } else {
-            sigs[0] = childSig;
-            sigs[1] = eveSig;
-        }
         assertEq(parent.isValidSignature(msgHash, abi.encode(sigs)), ERC1271_MAGIC);
     }
 
-    /// @dev A nested child whose signers are EOAs using personal_sign (prefixed) — what a wallet
-    ///      like MetaMask produces. The ERC-1271 path must accept the prefixed digest so a wallet
-    ///      EOA can be a signer of a nested Multisig without raw-hash signing.
+    /// @dev The key v3/v4 case: the nested child's signers are EOAs using personal_sign (prefixed) —
+    ///      what MetaMask produces. Accepted without raw-hash signing.
     function test_NestedMultisig_ExecTransaction_EoaPersonalSign() public {
         Multisig child = _deployChild(bytes32(uint256(0xC419D)));
-
-        address[] memory eoas = new address[](1);
-        eoas[0] = eveAddr;
-        bytes32[] memory empty = new bytes32[](0);
-        address[] memory contracts = new address[](1);
-        contracts[0] = address(child);
-        Multisig parent =
-            Multisig(payable(factory.createMultisig(eoas, empty, empty, empty, contracts, 2, bytes32(uint256(0xDAF)))));
+        Multisig parent = _deployParent(child, bytes32(uint256(0xDAF)));
         vm.deal(address(parent), 10 ether);
 
         address recipient = makeAddr("nested-eoa-recipient");
@@ -502,48 +475,39 @@ contract MultisigTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 parentHash = parent.getExecHash(recipient, amount, "", deadline);
 
-        // Child's signers sign with personal_sign (prefixed) — NOT raw. v3 accepts this.
+        // Child's signers sign with personal_sign (prefixed) — NOT raw.
         Multisig.Signature[] memory childInner = _twoEoaSigs(parentHash, alicePk, aliceAddr, bobPk, bobAddr);
         Multisig.Signature memory eveSig = _eoaSig(parentHash, evePk, eveAddr);
         Multisig.Signature memory childSig = _contractSig(address(child), childInner);
-
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (eveAddr < address(child)) {
-            sigs[0] = eveSig;
-            sigs[1] = childSig;
-        } else {
-            sigs[0] = childSig;
-            sigs[1] = eveSig;
-        }
+        Multisig.Signature[] memory sigs = _sortPair(eveSig, eveAddr, childSig, address(child));
 
         parent.execTransaction(recipient, amount, "", deadline, sigs);
         assertEq(recipient.balance, amount);
         assertEq(parent.nonce(), 1);
     }
 
-    function test_AddContractSigner_ViaExec() public {
+    function test_AddAccountSigner_Contract_ViaExec() public {
         MockERC1271 mock = new MockERC1271();
         mock.set(true);
-        bytes memory data = abi.encodeWithSelector(Multisig.addContractSigner.selector, address(mock));
+        bytes memory data = abi.encodeWithSelector(Multisig.addAccountSigner.selector, address(mock));
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(address(wallet), 0, data, deadline);
         wallet.execTransaction(address(wallet), 0, data, deadline, _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr));
-        assertTrue(wallet.isContractSigner(address(mock)));
+        assertTrue(wallet.isAccountSigner(address(mock)));
         assertEq(wallet.signerCount(), 4);
     }
 
-    function test_AddContractSigner_RevertOnCodeless() public {
-        // eveAddr is an EOA (no code) — cannot be a contract signer.
-        bytes memory data = abi.encodeWithSelector(Multisig.addContractSigner.selector, eveAddr);
+    /// @dev A codeless EOA is a perfectly valid account signer (v4 drops the old code requirement).
+    function test_AddAccountSigner_AcceptsCodelessEoa() public {
+        bytes memory data = abi.encodeWithSelector(Multisig.addAccountSigner.selector, eveAddr);
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(address(wallet), 0, data, deadline);
-        Multisig.Signature[] memory sigs = _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr);
-        vm.expectRevert(Multisig.ContractSignerHasNoCode.selector);
-        wallet.execTransaction(address(wallet), 0, data, deadline, sigs);
+        wallet.execTransaction(address(wallet), 0, data, deadline, _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr));
+        assertTrue(wallet.isAccountSigner(eveAddr));
     }
 
-    function test_AddContractSigner_RevertOnSelf() public {
-        bytes memory data = abi.encodeWithSelector(Multisig.addContractSigner.selector, address(wallet));
+    function test_AddAccountSigner_RevertOnSelf() public {
+        bytes memory data = abi.encodeWithSelector(Multisig.addAccountSigner.selector, address(wallet));
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(address(wallet), 0, data, deadline);
         Multisig.Signature[] memory sigs = _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr);
@@ -551,26 +515,18 @@ contract MultisigTest is Test {
         wallet.execTransaction(address(wallet), 0, data, deadline, sigs);
     }
 
-    /// @dev A contract signer whose validator reverts must fail closed (InvalidSignature), not bubble its revert.
+    /// @dev A contract account signer whose validator reverts must fail closed (InvalidSignature).
     function test_ContractSigner_RevertingValidatorFailsClosed() public {
         MockERC1271 mock = new MockERC1271();
         mock.setRevert(true);
-        _registerContractSigner(address(mock));
+        _registerAccountSigner(address(mock));
 
-        // Build a 2-sig exec: alice (EOA) + the reverting mock.
         address recipient = makeAddr("r");
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(recipient, 1 ether, "", deadline);
         Multisig.Signature memory aliceSig = _eoaSig(hash, alicePk, aliceAddr);
         Multisig.Signature memory mockSig = _contractSig(address(mock), new Multisig.Signature[](0));
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (aliceAddr < address(mock)) {
-            sigs[0] = aliceSig;
-            sigs[1] = mockSig;
-        } else {
-            sigs[0] = mockSig;
-            sigs[1] = aliceSig;
-        }
+        Multisig.Signature[] memory sigs = _sortPair(aliceSig, aliceAddr, mockSig, address(mock));
         vm.expectRevert(Multisig.InvalidSignature.selector);
         wallet.execTransaction(recipient, 1 ether, "", deadline, sigs);
     }
@@ -578,53 +534,39 @@ contract MultisigTest is Test {
     function test_ContractSigner_WrongMagicFails() public {
         MockERC1271 mock = new MockERC1271();
         mock.set(false); // returns 0xffffffff
-        _registerContractSigner(address(mock));
+        _registerAccountSigner(address(mock));
 
         address recipient = makeAddr("r2");
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(recipient, 1 ether, "", deadline);
         Multisig.Signature memory aliceSig = _eoaSig(hash, alicePk, aliceAddr);
         Multisig.Signature memory mockSig = _contractSig(address(mock), new Multisig.Signature[](0));
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (aliceAddr < address(mock)) {
-            sigs[0] = aliceSig;
-            sigs[1] = mockSig;
-        } else {
-            sigs[0] = mockSig;
-            sigs[1] = aliceSig;
-        }
+        Multisig.Signature[] memory sigs = _sortPair(aliceSig, aliceAddr, mockSig, address(mock));
         vm.expectRevert(Multisig.InvalidSignature.selector);
         wallet.execTransaction(recipient, 1 ether, "", deadline, sigs);
     }
 
-    /// @dev A contract signer presented with the wrong sigType (EOA) must be rejected.
-    function test_ContractSigner_TypeMismatchRejected() public {
+    /// @dev An account signer presented with sigType Passkey must be rejected (type mismatch).
+    function test_AccountSigner_TypeMismatchRejected() public {
         MockERC1271 mock = new MockERC1271();
         mock.set(true);
-        _registerContractSigner(address(mock));
+        _registerAccountSigner(address(mock));
 
         address recipient = makeAddr("r3");
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(recipient, 1 ether, "", deadline);
         Multisig.Signature memory aliceSig = _eoaSig(hash, alicePk, aliceAddr);
-        // Mislabel the contract signer as an EOA.
+        // Mislabel the account signer as a passkey.
         Multisig.Signature memory mockSig =
-            Multisig.Signature({ sigType: Multisig.SignerType.EOA, signer: address(mock), data: hex"00" });
-        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
-        if (aliceAddr < address(mock)) {
-            sigs[0] = aliceSig;
-            sigs[1] = mockSig;
-        } else {
-            sigs[0] = mockSig;
-            sigs[1] = aliceSig;
-        }
+            Multisig.Signature({ sigType: Multisig.SignerType.Passkey, signer: address(mock), data: hex"00" });
+        Multisig.Signature[] memory sigs = _sortPair(aliceSig, aliceAddr, mockSig, address(mock));
         vm.expectRevert(Multisig.SignerTypeMismatch.selector);
         wallet.execTransaction(recipient, 1 ether, "", deadline, sigs);
     }
 
-    /// @dev Register a contract signer on `wallet` via a threshold-approved self-call.
-    function _registerContractSigner(address signer) internal {
-        bytes memory data = abi.encodeWithSelector(Multisig.addContractSigner.selector, signer);
+    /// @dev Register an account signer on `wallet` via a threshold-approved self-call.
+    function _registerAccountSigner(address signer) internal {
+        bytes memory data = abi.encodeWithSelector(Multisig.addAccountSigner.selector, signer);
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 hash = wallet.getExecHash(address(wallet), 0, data, deadline);
         wallet.execTransaction(address(wallet), 0, data, deadline, _twoEoaSigs(hash, alicePk, aliceAddr, bobPk, bobAddr));
@@ -640,13 +582,15 @@ contract MultisigTest is Test {
     function _eoaSig(bytes32 hash, uint256 pk, address signer) internal pure returns (Multisig.Signature memory) {
         bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ethHash);
-        return Multisig.Signature({ sigType: Multisig.SignerType.EOA, signer: signer, data: abi.encodePacked(r, s, v) });
+        return
+            Multisig.Signature({ sigType: Multisig.SignerType.Account, signer: signer, data: abi.encodePacked(r, s, v) });
     }
 
     function _eoaSigRaw(bytes32 hash, uint256 pk, address signer) internal pure returns (Multisig.Signature memory) {
-        // No personal_sign prefix — used for ERC-1271 paths.
+        // No personal_sign prefix — exercises the raw-digest branch.
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, hash);
-        return Multisig.Signature({ sigType: Multisig.SignerType.EOA, signer: signer, data: abi.encodePacked(r, s, v) });
+        return
+            Multisig.Signature({ sigType: Multisig.SignerType.Account, signer: signer, data: abi.encodePacked(r, s, v) });
     }
 
     function _twoEoaSigsRaw(bytes32 hash, uint256 pk1, address addr1, uint256 pk2, address addr2)
@@ -654,16 +598,7 @@ contract MultisigTest is Test {
         pure
         returns (Multisig.Signature[] memory sigs)
     {
-        sigs = new Multisig.Signature[](2);
-        Multisig.Signature memory s1 = _eoaSigRaw(hash, pk1, addr1);
-        Multisig.Signature memory s2 = _eoaSigRaw(hash, pk2, addr2);
-        if (addr1 < addr2) {
-            sigs[0] = s1;
-            sigs[1] = s2;
-        } else {
-            sigs[0] = s2;
-            sigs[1] = s1;
-        }
+        return _sortPair(_eoaSigRaw(hash, pk1, addr1), addr1, _eoaSigRaw(hash, pk2, addr2), addr2);
     }
 
     function _twoEoaSigs(bytes32 hash, uint256 pk1, address addr1, uint256 pk2, address addr2)
@@ -671,16 +606,7 @@ contract MultisigTest is Test {
         pure
         returns (Multisig.Signature[] memory sigs)
     {
-        sigs = new Multisig.Signature[](2);
-        Multisig.Signature memory s1 = _eoaSig(hash, pk1, addr1);
-        Multisig.Signature memory s2 = _eoaSig(hash, pk2, addr2);
-        if (addr1 < addr2) {
-            sigs[0] = s1;
-            sigs[1] = s2;
-        } else {
-            sigs[0] = s2;
-            sigs[1] = s1;
-        }
+        return _sortPair(_eoaSig(hash, pk1, addr1), addr1, _eoaSig(hash, pk2, addr2), addr2);
     }
 }
 
@@ -721,7 +647,7 @@ contract ReentrantTarget {
     }
 }
 
-/// @notice Configurable ERC-1271 validator used to test the contract-signer path:
+/// @notice Configurable ERC-1271 validator used to test the contract-account-signer path:
 /// it can return the magic value, return the invalid sentinel, or revert.
 contract MockERC1271 is IERC1271 {
     bool internal _ok;

@@ -8,10 +8,10 @@ Everything a frontend / backend / bot needs to talk to the live `MultisigFactory
 
 | | Address | ABI |
 |---|---|---|
-| `Multisig` (implementation) | [`0x20d8866d59aA288966e515f3c6cA886555a2Ae11`](https://etherscan.io/address/0x20d8866d59aA288966e515f3c6cA886555a2Ae11#code) | [`abi/Multisig.json`](abi/Multisig.json) |
-| `MultisigFactory` | [`0x695123afA4E2C4F948E977e1974Ac80372044F31`](https://etherscan.io/address/0x695123afA4E2C4F948E977e1974Ac80372044F31#code) | [`abi/MultisigFactory.json`](abi/MultisigFactory.json) |
+| `Multisig` (implementation) | [`0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A`](https://etherscan.io/address/0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A#code) | [`abi/Multisig.json`](abi/Multisig.json) |
+| `MultisigFactory` | [`0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5`](https://etherscan.io/address/0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5#code) | [`abi/MultisigFactory.json`](abi/MultisigFactory.json) |
 
-These are the **v3** addresses (the `-v3` deploy salt). v2 added ERC-1271 contract signers (a `Multisig` can be a signer on another `Multisig`); v3 makes `isValidSignature` accept a personal_sign-prefixed signature in addition to the raw digest, so a wallet EOA (e.g. MetaMask) can be a signer of a nested `Multisig` without raw-hash signing. Same addresses on every chain we deploy to (as long as the source doesn't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
+These are the **v4** addresses (the `-v4` deploy salt). v4 collapses EOA and ERC-1271 contract signers into a single **Account** signer kind, validated polymorphically (ECDSA, accepting raw or personal_sign, then ERC-1271 fallback — the OpenZeppelin `SignatureChecker` pattern). So a plain EOA, an EIP-7702 smart account (e.g. MetaMask), a Gnosis Safe, or another `Multisig` can all be signers, and the contract never needs to know which at registration. **Passkey** stays its own kind. Same addresses on every chain we deploy to (as long as the source doesn't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
 
 > The earlier v1 deploy (`MultisigFactory` `0x21f0…602E`, `Multisig` `0x346D…df1e`) lacked contract signers and is superseded — do not create new wallets on it.
 
@@ -29,15 +29,15 @@ Etherscan also serves the ABI directly via API per address.
 import MultisigAbi from "./abi/Multisig.json";
 import FactoryAbi from "./abi/MultisigFactory.json";
 
-export const FACTORY = "0x695123afA4E2C4F948E977e1974Ac80372044F31" as const;
-export const MULTISIG_IMPL = "0x20d8866d59aA288966e515f3c6cA886555a2Ae11" as const;
+export const FACTORY = "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5" as const;
+export const MULTISIG_IMPL = "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A" as const;
 
-export const SIGNER_TYPE = { EOA: 0, Passkey: 1, ERC1271: 2 } as const;
+export const SIGNER_TYPE = { Account: 0, Passkey: 1 } as const;
 export type Signature = {
-  sigType: 0 | 1 | 2;    // 0 = EOA, 1 = Passkey, 2 = ERC1271 (contract signer)
-  signer: `0x${string}`; // EOA address, keccak256(qx||qy)[12:] for passkeys, or the contract signer's address
-  data: `0x${string}`;   // EOA: 65-byte ECDSA sig · Passkey: abi.encode(qx, qy, WebAuthnAuth)
-                         // ERC1271: the inner blob forwarded verbatim to signer.isValidSignature(hash, data)
+  sigType: 0 | 1;        // 0 = Account (EOA / 7702 / Safe / Multisig / any ERC-1271), 1 = Passkey
+  signer: `0x${string}`; // the account address, or keccak256(qx||qy)[12:] for passkeys
+  data: `0x${string}`;   // Account: a 65-byte ECDSA sig (EOA/7702) OR an ERC-1271 blob (Safe/Multisig/contract);
+                         // the contract tries ECDSA first, then ERC-1271. Passkey: abi.encode(qx, qy, WebAuthnAuth)
 };
 ```
 
@@ -78,23 +78,22 @@ const hash = await walletClient.writeContract({
   abi: FactoryAbi,
   functionName: "createMultisig",
   args: [
-    eoaSigners,         // address[]            — EOA signer addresses
+    accounts,           // address[]            — account signers: EOA / 7702 / Safe / Multisig / any ERC-1271
     passkeyQxs,         // bytes32[]            — passkey x-coords (parallel arrays)
     passkeyQys,         // bytes32[]            — passkey y-coords
     credentialIdHashes, // bytes32[]            — keccak256(credentialId) per passkey, 0x00 to skip
-    contractSigners,    // address[]            — ERC-1271 contract signers (e.g. another Multisig); must have code
     threshold,          // uint256              — sigs required (1 <= threshold <= total signers)
     salt,               // bytes32              — your unique salt
   ],
 });
 ```
 
-**Validation rules** (revert with `InvalidThreshold`, `InvalidSigner`, `AlreadySigner`, `LengthMismatch`, `ContractSignerHasNoCode`):
-- `threshold >= 1` and `threshold <= eoaSigners.length + passkeyQxs.length + contractSigners.length`
-- No `address(0)` in `eoaSigners`
-- No duplicate signers (an address may not appear twice — across EOA, passkey, and contract-signer sets after the passkey-address derivation)
+**Validation rules** (revert with `InvalidThreshold`, `InvalidSigner`, `AlreadySigner`, `LengthMismatch`):
+- `threshold >= 1` and `threshold <= accounts.length + passkeyQxs.length`
+- No `address(0)` in `accounts`, and no account may be the multisig itself (`address(this)`)
+- No duplicate signers (an address may not appear twice — across accounts and passkeys after the passkey-address derivation)
 - For passkeys: `qx != 0 && qy != 0`
-- For contract signers: the address must have code, and may not be the multisig itself (`address(this)`)
+- Account signers have **no** code requirement — a plain EOA (no code) is fine; the contract validates it by ECDSA
 - Array lengths match: `passkeyQxs.length == passkeyQys.length == credentialIdHashes.length`
 
 **Passkey address derivation**: `passkeyAddr = address(uint160(uint256(keccak256(abi.encodePacked(qx, qy)))))`. The contract exposes this as `Multisig.getPasskeyAddress(qx, qy)` view.
@@ -105,8 +104,7 @@ event MultisigCreated(
   address indexed multisig,
   address indexed deployer,
   bytes32 salt,
-  address[] eoaSigners,
-  address[] contractSigners,
+  address[] accounts,
   uint256 threshold
 );
 ```
@@ -164,9 +162,9 @@ The contract exposes `getExecHash` and `getBatchExecHash` as view functions, so 
 
 ## 6. Sign the hash
 
-### EOA signer
+### Account signer — EOA / 7702 smart account
 
-The contract applies the `\x19Ethereum Signed Message:\n32` prefix before `ecrecover`, so a normal `personal_sign` works:
+A normal `personal_sign` works (the contract accepts both raw and personal_sign-prefixed digests, trying raw first):
 
 ```ts
 const sig = await walletClient.signMessage({
@@ -174,8 +172,8 @@ const sig = await walletClient.signMessage({
 });
 
 const signature: Signature = {
-  sigType: SIGNER_TYPE.EOA,
-  signer: signerAddress,       // must equal ecrecover(prefixed(execHash), sig)
+  sigType: SIGNER_TYPE.Account,
+  signer: signerAddress,       // recovers from execHash (raw or personal_sign-prefixed)
   data: sig,                   // 65 bytes: r || s || v
 };
 ```
@@ -207,15 +205,15 @@ const signature: Signature = {
 
 The inner tuple matches OpenZeppelin's `WebAuthn.WebAuthnAuth` struct exactly.
 
-### Contract signer (ERC-1271 / nested multisig)
+### Account signer — contract wallet (Safe / nested Multisig / any ERC-1271)
 
-A registered contract signer (e.g. another `Multisig`) approves by producing an ERC-1271 signature blob that its own `isValidSignature(hash, data)` accepts. The parent forwards the `execHash` to the child. The child's **passkey** signers sign that hash as their raw challenge; its **EOA** signers can sign it either raw or (as of v3) via a normal `personal_sign` — the latter is what lets a MetaMask EOA co-sign without raw-hash signing.
+A contract account signer is **also** `sigType: Account` — the contract tries ECDSA first (which fails for a contract address) and then falls back to the signer's ERC-1271 `isValidSignature(execHash, data)`. The `data` is whatever that contract's validator expects.
+
+For a **nested Multisig**, `data` is its own `Signature[]` blob: collect threshold-or-more signatures from the child's signers over the parent's `execHash` (its account signers via `signMessage({raw})` / personal_sign; its passkeys via raw challenge), sorted by signer, then:
 
 ```ts
-// `childSignatures` = threshold-or-more Signature[] from the child's signers over the parent's
-// execHash (EOA: signMessage({raw}) personal_sign works in v3; passkey: raw challenge), sorted by signer.
 const signature: Signature = {
-  sigType: SIGNER_TYPE.ERC1271,
+  sigType: SIGNER_TYPE.Account,        // contract signers are Accounts too in v4
   signer: childMultisigAddress,
   data: encodeAbiParameters(
     parseAbiParameters("(uint8 sigType, address signer, bytes data)[]"),
@@ -223,6 +221,8 @@ const signature: Signature = {
   ),
 };
 ```
+
+For a **Gnosis Safe**, `data` is the Safe owners' signature blob over the `SafeMessage`-wrapped `execHash` (produced via the Safe app / SDK).
 
 The parent does a `staticcall` to `childMultisigAddress.isValidSignature(execHash, data)` and accepts the signer iff it returns the `0x1626ba7e` magic value. A reverting or non-conforming child fails closed (treated as an invalid signature). The child counts as exactly **one** signer toward the parent's threshold, regardless of its own internal threshold.
 
@@ -268,7 +268,7 @@ The multisig itself can sign messages on behalf of integrations that check `IERC
 
 The `signatures` blob is `abi.encode(Signature[])` — the same struct array as `execTransaction`, sorted by signer. The contract returns `0x1626ba7e` if at least `threshold` registered signers produced valid signatures over `hash`.
 
-**Important semantic difference from `execTransaction`**: for EOA signers, ERC-1271 accepts **either** a signature over the raw hash **as-passed** (no prefix — so EIP-712 callers like Permit2 / Seaport / CoW Protocol work) **or** a `personal_sign`-prefixed signature over it. Raw is tried first. The prefixed form is what lets a wallet EOA (MetaMask) co-sign as a signer of a nested `Multisig` without raw-hash signing.
+**Note on EOA signers**: ERC-1271 accepts **either** a signature over the raw hash **as-passed** (no prefix — so EIP-712 callers like Permit2 / Seaport / CoW Protocol work) **or** a `personal_sign`-prefixed signature over it. Raw is tried first. The prefixed form is what lets a wallet EOA (MetaMask) co-sign as a signer of a nested `Multisig` without raw-hash signing. Contract account signers fall through to their own ERC-1271 validator.
 
 ```ts
 const packed = encodeAbiParameters(
@@ -285,7 +285,7 @@ const magic = await client.readContract({
 // magic === "0x1626ba7e" → valid
 ```
 
-As of v3 a `personal_sign` over the hash also validates for EOA signers (raw is tried first, then the prefixed form), so you don't need to special-case prefix handling off-chain — a normal `signMessage({ raw: hash })` works.
+A `personal_sign` over the hash validates for account signers (raw is tried first, then the prefixed form), so you don't need to special-case prefix handling off-chain — a normal `signMessage({ raw: hash })` works.
 
 ---
 
@@ -295,20 +295,19 @@ All membership changes are `onlySelf` — the multisig must call them on itself 
 
 | Function | Args | What it does |
 |---|---|---|
-| `addEoaSigner(address signer)` | EOA address | Adds an EOA signer |
+| `addAccountSigner(address signer)` | account address | Adds an account signer (EOA / 7702 / Safe / Multisig / any ERC-1271). Reverts `InvalidSigner` for `address(0)` or the multisig itself |
 | `addPasskeySigner(bytes32 qx, bytes32 qy, bytes32 credentialIdHash)` | passkey coords + lookup hash | Adds a passkey signer |
-| `addContractSigner(address signer)` | contract address | Adds an ERC-1271 contract signer (e.g. another `Multisig`). Reverts `ContractSignerHasNoCode` if codeless, `InvalidSigner` if it's the multisig itself |
 | `removeSigner(address signer)` | any signer address | Removes a signer. Reverts `InvalidThreshold` if it would drop signer count below current threshold |
 | `changeThreshold(uint256 newThreshold)` | new M | Reverts `InvalidThreshold` if `newThreshold == 0` or `> signers.length` |
 
-`addPasskeySigner` rejects zero coordinates (`qx == 0 || qy == 0`). `addEoaSigner` rejects `address(0)`. `addContractSigner` requires the address to have code. All reject duplicates.
+`addPasskeySigner` rejects zero coordinates (`qx == 0 || qy == 0`). `addAccountSigner` rejects `address(0)` and self. All reject duplicates.
 
-Example: queue an "add EOA signer" through exec:
+Example: queue an "add account signer" through exec:
 
 ```ts
 const data = encodeFunctionData({
   abi: MultisigAbi,
-  functionName: "addEoaSigner",
+  functionName: "addAccountSigner",
   args: [newSignerAddress],
 });
 
@@ -335,7 +334,7 @@ const nonce = await client.readContract({
   address: multisig, abi: MultisigAbi, functionName: "nonce",
 });
 
-// Per-signer metadata. `kind` is the SignerType enum: 0 = EOA, 1 = Passkey, 2 = ERC1271.
+// Per-signer metadata. `kind` is the SignerType enum: 0 = Account, 1 = Passkey.
 const [exists, kind, qx, qy] = await client.readContract({
   address: multisig, abi: MultisigAbi, functionName: "signerInfo",
   args: [someAddress],
@@ -347,9 +346,9 @@ const isPasskey = await client.readContract({
   args: [someAddress],
 });
 
-// Is this address an ERC-1271 contract signer?
-const isContractSigner = await client.readContract({
-  address: multisig, abi: MultisigAbi, functionName: "isContractSigner",
+// Is this address an account signer (EOA / 7702 / contract wallet)?
+const isAccountSigner = await client.readContract({
+  address: multisig, abi: MultisigAbi, functionName: "isAccountSigner",
   args: [someAddress],
 });
 
@@ -363,7 +362,7 @@ const [passkeyAddr, qx, qy] = await client.readContract({
 Events you'll typically index:
 
 ```solidity
-event SignerAdded(address indexed signer, uint8 kind); // SignerType: 0 = EOA, 1 = Passkey, 2 = ERC1271
+event SignerAdded(address indexed signer, uint8 kind); // SignerType: 0 = Account, 1 = Passkey
 event SignerRemoved(address indexed signer);
 event ThresholdChanged(uint256 newThreshold);
 event Executed(address indexed target, uint256 value, bytes data);
@@ -377,8 +376,7 @@ event MultisigCreated(
   address indexed multisig,
   address indexed deployer,
   bytes32 salt,
-  address[] eoaSigners,
-  address[] contractSigners,
+  address[] accounts,
   uint256 threshold
 );
 ```
@@ -393,18 +391,17 @@ Reverts from `Multisig`:
 |---|---|
 | `NotSelf()` | `onlySelf` function called by an external caller (admin actions are only callable via threshold-approved exec) |
 | `InvalidThreshold()` | Threshold is 0, exceeds signer count, or removing a signer would drop signers below threshold |
-| `InvalidSigner()` | `address(0)`, zero passkey coordinates, or a contract signer equal to the multisig itself |
+| `InvalidSigner()` | `address(0)`, zero passkey coordinates, or an account signer equal to the multisig itself |
 | `AlreadySigner()` | Address already registered as a signer |
 | `NotSigner()` | Sig produced by an address that isn't a signer |
 | `LengthMismatch()` | Parallel passkey arrays have different lengths |
 | `ExpiredSignature()` | `block.timestamp > deadline` |
-| `InvalidSignature()` | ECDSA recovery doesn't match `sig.signer`, or WebAuthn verify failed, or passkey coords don't match registered ones |
+| `InvalidSignature()` | Account: neither ECDSA recovery (raw or prefixed) nor the signer's ERC-1271 validator accepted the sig. Passkey: WebAuthn verify failed or coords don't match |
 | `ThresholdNotMet()` | Fewer signatures provided than required |
 | `SignersUnsorted()` | Signature array not sorted ascending by `signer` (this also catches duplicate signers) |
 | `ExecutionFailed()` | Inner call reverted with no data; otherwise the inner revert is bubbled up verbatim |
-| `SignerTypeMismatch()` | The `sigType` in the signature doesn't match the registered signer's kind (EOA / Passkey / ERC1271) |
+| `SignerTypeMismatch()` | The `sigType` in the signature doesn't match the registered signer's kind (Account vs Passkey) |
 | `EmptyBatch()` | `execBatchTransaction` called with zero calls (no-op rejected to avoid burning a nonce) |
-| `ContractSignerHasNoCode()` | `addContractSigner` / `initialize` given a contract-signer address with no code |
 
 Reverts from `MultisigFactory`:
 
