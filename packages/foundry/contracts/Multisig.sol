@@ -367,6 +367,18 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
         }
     }
 
+    /// @dev True if `signature` recovers to `signer` over `hash` — accepting EITHER the raw digest
+    ///      (EIP-712 / contract callers) OR the personal_sign-prefixed digest (wallet EOAs). Used by
+    ///      the ERC-1271 path so a wallet EOA (which can't safely sign a raw hash) can be a signer of
+    ///      a nested Multisig. The execution path keeps using the prefixed form exclusively.
+    function _recoversTo(bytes32 hash, bytes memory signature, address signer) internal pure returns (bool) {
+        (address rawRec, ECDSA.RecoverError rawErr,) = ECDSA.tryRecover(hash, signature);
+        if (rawErr == ECDSA.RecoverError.NoError && rawRec == signer) return true;
+        (address ethRec, ECDSA.RecoverError ethErr,) =
+            ECDSA.tryRecover(MessageHashUtils.toEthSignedMessageHash(hash), signature);
+        return ethErr == ECDSA.RecoverError.NoError && ethRec == signer;
+    }
+
     /**
      * @notice ERC-1271 signature validation. Returns the magic value if `signatures` proves that at least
      *         `threshold` registered signers signed `hash`. The signature bytes is an abi-encoded Signature[].
@@ -386,10 +398,14 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
             if (sig.sigType != info.kind) return 0xffffffff;
 
             if (info.kind == SignerType.EOA) {
-                // M-2: ERC-1271 verifies the hash as-signed. DeFi protocols (EIP-712 / signTypedData_v4) pass an
-                // already-prepared digest — adding a personal_sign prefix here would silently reject them.
-                (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, sig.data);
-                if (err != ECDSA.RecoverError.NoError || recovered != sig.signer) return 0xffffffff;
+                // Accept either signature form over `hash`:
+                //  1. raw digest — EIP-712 / Permit2 / contract callers pass an already-prepared
+                //     hash (M-2); tried FIRST so those flows are unchanged.
+                //  2. personal_sign-prefixed digest — wallet EOAs (e.g. MetaMask) can only safely
+                //     produce this; required for an EOA to act as a signer of a nested Multisig.
+                // Either is a genuine signature by the registered signer over `hash`, so accepting
+                // both adds no attack surface — it just covers both signing methods.
+                if (!_recoversTo(hash, sig.data, sig.signer)) return 0xffffffff;
             } else if (info.kind == SignerType.Passkey) {
                 (bytes32 qx, bytes32 qy, WebAuthn.WebAuthnAuth memory auth) =
                     abi.decode(sig.data, (bytes32, bytes32, WebAuthn.WebAuthnAuth));

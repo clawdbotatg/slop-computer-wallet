@@ -8,10 +8,10 @@ Everything a frontend / backend / bot needs to talk to the live `MultisigFactory
 
 | | Address | ABI |
 |---|---|---|
-| `Multisig` (implementation) | [`0xEaAffe5e58200868AeB5021B0a865f1A856f9E43`](https://etherscan.io/address/0xEaAffe5e58200868AeB5021B0a865f1A856f9E43#code) | [`abi/Multisig.json`](abi/Multisig.json) |
-| `MultisigFactory` | [`0x6D344c2258Aa954F315950488367B7B66e01170f`](https://etherscan.io/address/0x6D344c2258Aa954F315950488367B7B66e01170f#code) | [`abi/MultisigFactory.json`](abi/MultisigFactory.json) |
+| `Multisig` (implementation) | [`0x20d8866d59aA288966e515f3c6cA886555a2Ae11`](https://etherscan.io/address/0x20d8866d59aA288966e515f3c6cA886555a2Ae11#code) | [`abi/Multisig.json`](abi/Multisig.json) |
+| `MultisigFactory` | [`0x695123afA4E2C4F948E977e1974Ac80372044F31`](https://etherscan.io/address/0x695123afA4E2C4F948E977e1974Ac80372044F31#code) | [`abi/MultisigFactory.json`](abi/MultisigFactory.json) |
 
-These are the **v2** addresses (the `-v2` deploy salt). v2 adds ERC-1271 contract signers — a `Multisig` can now be a signer on another `Multisig`. Same addresses on every chain we deploy to (as long as `Multisig.sol` / `MultisigFactory.sol` don't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
+These are the **v3** addresses (the `-v3` deploy salt). v2 added ERC-1271 contract signers (a `Multisig` can be a signer on another `Multisig`); v3 makes `isValidSignature` accept a personal_sign-prefixed signature in addition to the raw digest, so a wallet EOA (e.g. MetaMask) can be a signer of a nested `Multisig` without raw-hash signing. Same addresses on every chain we deploy to (as long as the source doesn't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
 
 > The earlier v1 deploy (`MultisigFactory` `0x21f0…602E`, `Multisig` `0x346D…df1e`) lacked contract signers and is superseded — do not create new wallets on it.
 
@@ -29,8 +29,8 @@ Etherscan also serves the ABI directly via API per address.
 import MultisigAbi from "./abi/Multisig.json";
 import FactoryAbi from "./abi/MultisigFactory.json";
 
-export const FACTORY = "0x6D344c2258Aa954F315950488367B7B66e01170f" as const;
-export const MULTISIG_IMPL = "0xEaAffe5e58200868AeB5021B0a865f1A856f9E43" as const;
+export const FACTORY = "0x695123afA4E2C4F948E977e1974Ac80372044F31" as const;
+export const MULTISIG_IMPL = "0x20d8866d59aA288966e515f3c6cA886555a2Ae11" as const;
 
 export const SIGNER_TYPE = { EOA: 0, Passkey: 1, ERC1271: 2 } as const;
 export type Signature = {
@@ -209,11 +209,11 @@ The inner tuple matches OpenZeppelin's `WebAuthn.WebAuthnAuth` struct exactly.
 
 ### Contract signer (ERC-1271 / nested multisig)
 
-A registered contract signer (e.g. another `Multisig`) approves by producing an ERC-1271 signature blob that its own `isValidSignature(hash, data)` accepts. The parent forwards the **raw** `execHash` (no prefix) to the child, so the child's signers sign the raw `execHash` exactly as they would for the parent's own ERC-1271 path.
+A registered contract signer (e.g. another `Multisig`) approves by producing an ERC-1271 signature blob that its own `isValidSignature(hash, data)` accepts. The parent forwards the `execHash` to the child. The child's **passkey** signers sign that hash as their raw challenge; its **EOA** signers can sign it either raw or (as of v3) via a normal `personal_sign` — the latter is what lets a MetaMask EOA co-sign without raw-hash signing.
 
 ```ts
-// `childSignatures` = threshold-or-more Signature[] from the child's signers, signed over the
-// parent's RAW execHash (no personal_sign prefix), sorted ascending by signer.
+// `childSignatures` = threshold-or-more Signature[] from the child's signers over the parent's
+// execHash (EOA: signMessage({raw}) personal_sign works in v3; passkey: raw challenge), sorted by signer.
 const signature: Signature = {
   sigType: SIGNER_TYPE.ERC1271,
   signer: childMultisigAddress,
@@ -268,7 +268,7 @@ The multisig itself can sign messages on behalf of integrations that check `IERC
 
 The `signatures` blob is `abi.encode(Signature[])` — the same struct array as `execTransaction`, sorted by signer. The contract returns `0x1626ba7e` if at least `threshold` registered signers produced valid signatures over `hash`.
 
-**Important semantic difference from `execTransaction`**: ERC-1271 recovers the hash **as-passed** (no `personal_sign` prefix), so EIP-712 callers like Permit2 / Seaport / CoW Protocol work correctly.
+**Important semantic difference from `execTransaction`**: for EOA signers, ERC-1271 accepts **either** a signature over the raw hash **as-passed** (no prefix — so EIP-712 callers like Permit2 / Seaport / CoW Protocol work) **or** a `personal_sign`-prefixed signature over it. Raw is tried first. The prefixed form is what lets a wallet EOA (MetaMask) co-sign as a signer of a nested `Multisig` without raw-hash signing.
 
 ```ts
 const packed = encodeAbiParameters(
@@ -285,7 +285,7 @@ const magic = await client.readContract({
 // magic === "0x1626ba7e" → valid
 ```
 
-If your dapp uses `personal_sign` flows and wants the multisig to validate via ERC-1271, you must apply the prefix off-chain (sign `keccak256("\x19Ethereum Signed Message:\n32" || hash)` from the signers' perspective) so that the recovery matches.
+As of v3 a `personal_sign` over the hash also validates for EOA signers (raw is tried first, then the prefixed form), so you don't need to special-case prefix handling off-chain — a normal `signMessage({ raw: hash })` works.
 
 ---
 

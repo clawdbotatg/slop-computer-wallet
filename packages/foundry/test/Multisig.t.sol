@@ -280,12 +280,14 @@ contract MultisigTest is Test {
         assertEq(wallet.isValidSignature(msgHash, packed), ERC1271_INVALID);
     }
 
-    function test_IsValidSignature_RejectsPersonalSignPrefixed() public view {
-        // Sanity: a personal_sign-style prefixed signature should NOT validate via ERC-1271.
+    function test_IsValidSignature_AcceptsPersonalSignPrefixed() public view {
+        // v3: ERC-1271 accepts EITHER a raw-digest signature (EIP-712 / Permit2) OR a
+        // personal_sign-prefixed one (what wallet EOAs like MetaMask produce). This is what
+        // lets a wallet EOA be a signer of a nested Multisig without raw-hash signing.
         bytes32 msgHash = keccak256("prefixed");
         Multisig.Signature[] memory sigs = _twoEoaSigs(msgHash, alicePk, aliceAddr, bobPk, bobAddr);
         bytes memory packed = abi.encode(sigs);
-        assertEq(wallet.isValidSignature(msgHash, packed), ERC1271_INVALID);
+        assertEq(wallet.isValidSignature(msgHash, packed), ERC1271_MAGIC);
     }
 
     // ============ Audit-driven additions ============
@@ -478,6 +480,45 @@ contract MultisigTest is Test {
             sigs[1] = eveSig;
         }
         assertEq(parent.isValidSignature(msgHash, abi.encode(sigs)), ERC1271_MAGIC);
+    }
+
+    /// @dev A nested child whose signers are EOAs using personal_sign (prefixed) — what a wallet
+    ///      like MetaMask produces. The ERC-1271 path must accept the prefixed digest so a wallet
+    ///      EOA can be a signer of a nested Multisig without raw-hash signing.
+    function test_NestedMultisig_ExecTransaction_EoaPersonalSign() public {
+        Multisig child = _deployChild(bytes32(uint256(0xC419D)));
+
+        address[] memory eoas = new address[](1);
+        eoas[0] = eveAddr;
+        bytes32[] memory empty = new bytes32[](0);
+        address[] memory contracts = new address[](1);
+        contracts[0] = address(child);
+        Multisig parent =
+            Multisig(payable(factory.createMultisig(eoas, empty, empty, empty, contracts, 2, bytes32(uint256(0xDAF)))));
+        vm.deal(address(parent), 10 ether);
+
+        address recipient = makeAddr("nested-eoa-recipient");
+        uint256 amount = 1 ether;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 parentHash = parent.getExecHash(recipient, amount, "", deadline);
+
+        // Child's signers sign with personal_sign (prefixed) — NOT raw. v3 accepts this.
+        Multisig.Signature[] memory childInner = _twoEoaSigs(parentHash, alicePk, aliceAddr, bobPk, bobAddr);
+        Multisig.Signature memory eveSig = _eoaSig(parentHash, evePk, eveAddr);
+        Multisig.Signature memory childSig = _contractSig(address(child), childInner);
+
+        Multisig.Signature[] memory sigs = new Multisig.Signature[](2);
+        if (eveAddr < address(child)) {
+            sigs[0] = eveSig;
+            sigs[1] = childSig;
+        } else {
+            sigs[0] = childSig;
+            sigs[1] = eveSig;
+        }
+
+        parent.execTransaction(recipient, amount, "", deadline, sigs);
+        assertEq(recipient.balance, amount);
+        assertEq(parent.nonce(), 1);
     }
 
     function test_AddContractSigner_ViaExec() public {

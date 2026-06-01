@@ -37,8 +37,8 @@ contract DeployDeterministic is ScaffoldETHDeploy {
 
     /// @notice Bump these whenever the Multisig or MultisigFactory source/initcode changes
     /// to get a new address. Must match between every chain you want a shared address on.
-    bytes32 constant IMPL_SALT = keccak256("slop-multisig-impl-v2");
-    bytes32 constant FACTORY_SALT = keccak256("slop-multisig-factory-v2");
+    bytes32 constant IMPL_SALT = keccak256("slop-multisig-impl-v3");
+    bytes32 constant FACTORY_SALT = keccak256("slop-multisig-factory-v3");
 
     error SingletonNotPresent();
     error ImplDeployFailed();
