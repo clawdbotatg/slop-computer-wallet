@@ -10,14 +10,17 @@ import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /**
  * @title Multisig
- * @notice A simple M-of-N multisig that accepts EOA and passkey (WebAuthn / secp256r1) signers
+ * @notice A simple M-of-N multisig that accepts EOA, passkey (WebAuthn / secp256r1), and
+ *         ERC-1271 contract signers (e.g. another Multisig) as members.
  * @notice Supports ERC-1271 signature validation so the multisig itself can sign off-chain messages
+ *         AND can in turn be registered as a signer on another ERC-1271-aware contract (incl. another Multisig).
  * @author BuidlGuidl
  */
 contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     enum SignerType {
         EOA,
-        Passkey
+        Passkey,
+        ERC1271
     }
 
     struct Call {
@@ -29,6 +32,8 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     /// @dev One element per signature. `signer` MUST be ascending across the array to prevent duplicates.
     /// For EOA: data = 65-byte ECDSA signature, signer = recovered address.
     /// For Passkey: data = abi.encode(bytes32 qx, bytes32 qy, WebAuthn.WebAuthnAuth auth), signer = passkey address.
+    /// For ERC1271: data = the inner signature blob forwarded verbatim to signer.isValidSignature(hash, data),
+    ///              signer = the contract signer's address.
     struct Signature {
         SignerType sigType;
         address signer;
@@ -37,8 +42,9 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
 
     struct SignerInfo {
         bool exists;
-        bytes32 qx; // 0 for EOA, non-zero for passkey
-        bytes32 qy; // 0 for EOA, non-zero for passkey
+        SignerType kind; // authoritative type discriminator (EOA / Passkey / ERC1271)
+        bytes32 qx; // passkey only; 0 otherwise
+        bytes32 qy; // passkey only; 0 otherwise
     }
 
     /// @notice Per-signer metadata. exists=true means active signer.
@@ -60,7 +66,7 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     /// @dev Kept so removeSigner can clear `credentialIdToAddress` and avoid stale reverse-lookup entries.
     mapping(address => bytes32) public credentialIdOf;
 
-    event SignerAdded(address indexed signer, bool isPasskey);
+    event SignerAdded(address indexed signer, SignerType kind);
     event SignerRemoved(address indexed signer);
     event ThresholdChanged(uint256 newThreshold);
     event Executed(address indexed target, uint256 value, bytes data);
@@ -79,6 +85,7 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     error ExecutionFailed();
     error SignerTypeMismatch();
     error EmptyBatch();
+    error ContractSignerHasNoCode();
 
     modifier onlySelf() {
         if (msg.sender != address(this)) revert NotSelf();
@@ -91,11 +98,12 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     }
 
     /**
-     * @notice Initialize the multisig with EOA signers, passkey signers, and a threshold.
+     * @notice Initialize the multisig with EOA signers, passkey signers, contract (ERC-1271) signers, and a threshold.
      * @param eoaSigners Array of EOA signer addresses.
      * @param passkeyQxs Array of passkey x-coordinates (parallel to passkeyQys / credentialIdHashes).
      * @param passkeyQys Array of passkey y-coordinates.
      * @param credentialIdHashes Array of keccak256(credentialId) values for reverse login lookup. Use 0 to skip.
+     * @param contractSigners Array of ERC-1271 contract signer addresses (e.g. another Multisig). Must have code.
      * @param _threshold Number of signatures required to execute (1 <= _threshold <= total signers).
      */
     function initialize(
@@ -103,22 +111,26 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
         bytes32[] calldata passkeyQxs,
         bytes32[] calldata passkeyQys,
         bytes32[] calldata credentialIdHashes,
+        address[] calldata contractSigners,
         uint256 _threshold
     ) external initializer {
         if (passkeyQxs.length != passkeyQys.length || passkeyQxs.length != credentialIdHashes.length) {
             revert LengthMismatch();
         }
-        uint256 total = eoaSigners.length + passkeyQxs.length;
+        uint256 total = eoaSigners.length + passkeyQxs.length + contractSigners.length;
         if (_threshold == 0 || _threshold > total) revert InvalidThreshold();
 
         for (uint256 i = 0; i < eoaSigners.length; i++) {
-            _addSigner(eoaSigners[i], 0, 0, 0);
+            _addSigner(eoaSigners[i], SignerType.EOA, 0, 0, 0);
         }
         for (uint256 i = 0; i < passkeyQxs.length; i++) {
             // M-1: reject zero passkey coordinates so we never register a slot that no one can sign for.
             if (passkeyQxs[i] == bytes32(0) || passkeyQys[i] == bytes32(0)) revert InvalidSigner();
             address pkAddr = getPasskeyAddress(passkeyQxs[i], passkeyQys[i]);
-            _addSigner(pkAddr, passkeyQxs[i], passkeyQys[i], credentialIdHashes[i]);
+            _addSigner(pkAddr, SignerType.Passkey, passkeyQxs[i], passkeyQys[i], credentialIdHashes[i]);
+        }
+        for (uint256 i = 0; i < contractSigners.length; i++) {
+            _addContractSigner(contractSigners[i]);
         }
 
         threshold = _threshold;
@@ -142,9 +154,15 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
         return _signers.length;
     }
 
-    /// @notice True if `addr` is a registered passkey signer (vs an EOA signer).
+    /// @notice True if `addr` is a registered passkey signer.
     function isPasskey(address addr) public view returns (bool) {
-        return signerInfo[addr].qx != bytes32(0);
+        return signerInfo[addr].kind == SignerType.Passkey;
+    }
+
+    /// @notice True if `addr` is a registered ERC-1271 contract signer.
+    function isContractSigner(address addr) external view returns (bool) {
+        SignerInfo memory info = signerInfo[addr];
+        return info.exists && info.kind == SignerType.ERC1271;
     }
 
     /// @notice Look up a passkey by credentialId hash (login flow). Returns zeroes if not registered.
@@ -163,13 +181,19 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
     // ============ Self-governed admin (callable only via execTransaction reaching threshold) ============
 
     function addEoaSigner(address signer) external onlySelf {
-        _addSigner(signer, 0, 0, 0);
+        _addSigner(signer, SignerType.EOA, 0, 0, 0);
     }
 
     function addPasskeySigner(bytes32 qx, bytes32 qy, bytes32 credentialIdHash) external onlySelf {
         if (qx == bytes32(0) || qy == bytes32(0)) revert InvalidSigner();
         address pkAddr = getPasskeyAddress(qx, qy);
-        _addSigner(pkAddr, qx, qy, credentialIdHash);
+        _addSigner(pkAddr, SignerType.Passkey, qx, qy, credentialIdHash);
+    }
+
+    /// @notice Register an ERC-1271 contract (e.g. another Multisig) as a signer.
+    /// @dev The contract must already have code; a codeless address could never validate a signature.
+    function addContractSigner(address signer) external onlySelf {
+        _addContractSigner(signer);
     }
 
     function removeSigner(address signer) external onlySelf {
@@ -203,16 +227,24 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
         emit ThresholdChanged(newThreshold);
     }
 
-    function _addSigner(address signer, bytes32 qx, bytes32 qy, bytes32 credId) internal {
+    /// @dev Validate-and-register a contract signer. Rejects self-reference (which would recurse on
+    ///      verification) and codeless addresses (which could never produce a valid ERC-1271 result).
+    function _addContractSigner(address signer) internal {
+        if (signer == address(this)) revert InvalidSigner();
+        if (signer.code.length == 0) revert ContractSignerHasNoCode();
+        _addSigner(signer, SignerType.ERC1271, 0, 0, 0);
+    }
+
+    function _addSigner(address signer, SignerType kind, bytes32 qx, bytes32 qy, bytes32 credId) internal {
         if (signer == address(0)) revert InvalidSigner();
         if (signerInfo[signer].exists) revert AlreadySigner();
-        signerInfo[signer] = SignerInfo({ exists: true, qx: qx, qy: qy });
+        signerInfo[signer] = SignerInfo({ exists: true, kind: kind, qx: qx, qy: qy });
         _signers.push(signer);
         if (credId != bytes32(0)) {
             credentialIdToAddress[credId] = signer;
             credentialIdOf[signer] = credId;
         }
-        emit SignerAdded(signer, qx != bytes32(0));
+        emit SignerAdded(signer, kind);
     }
 
     // ============ Execution ============
@@ -303,21 +335,35 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
 
             SignerInfo memory info = signerInfo[sig.signer];
             if (!info.exists) revert NotSigner();
+            if (sig.sigType != info.kind) revert SignerTypeMismatch();
 
-            if (sig.sigType == SignerType.EOA) {
-                if (info.qx != bytes32(0)) revert SignerTypeMismatch();
+            if (info.kind == SignerType.EOA) {
                 // EOAs sign the personal_sign-prefixed digest (what wallets produce for eth_sign / signMessage).
                 bytes32 ethHash = MessageHashUtils.toEthSignedMessageHash(hash);
                 address recovered = ECDSA.recover(ethHash, sig.data);
                 if (recovered != sig.signer) revert InvalidSignature();
-            } else {
-                if (info.qx == bytes32(0)) revert SignerTypeMismatch();
+            } else if (info.kind == SignerType.Passkey) {
                 (bytes32 qx, bytes32 qy, WebAuthn.WebAuthnAuth memory auth) =
                     abi.decode(sig.data, (bytes32, bytes32, WebAuthn.WebAuthnAuth));
                 if (qx != info.qx || qy != info.qy) revert InvalidSignature();
                 bytes memory challenge = abi.encodePacked(hash);
                 if (!WebAuthn.verify(challenge, auth, qx, qy)) revert InvalidSignature();
+            } else {
+                // ERC-1271 contract signer (e.g. a nested Multisig). Forward the raw hash; the signer
+                // applies its own digest scheme. A staticcall keeps this view and blocks re-entrancy.
+                if (!_isValidContractSig(sig.signer, hash, sig.data)) revert InvalidSignature();
             }
+        }
+    }
+
+    /// @dev Validate a contract signer via ERC-1271. Wrapped in try/catch so a reverting or
+    ///      non-conforming signer fails closed (treated as an invalid signature) rather than
+    ///      bubbling a revert through verification.
+    function _isValidContractSig(address signer, bytes32 hash, bytes memory data) internal view returns (bool) {
+        try IERC1271(signer).isValidSignature(hash, data) returns (bytes4 magic) {
+            return magic == IERC1271.isValidSignature.selector;
+        } catch {
+            return false;
         }
     }
 
@@ -337,20 +383,22 @@ contract Multisig is IERC1271, Initializable, ReentrancyGuardTransient {
 
             SignerInfo memory info = signerInfo[sig.signer];
             if (!info.exists) return 0xffffffff;
+            if (sig.sigType != info.kind) return 0xffffffff;
 
-            if (sig.sigType == SignerType.EOA) {
-                if (info.qx != bytes32(0)) return 0xffffffff;
+            if (info.kind == SignerType.EOA) {
                 // M-2: ERC-1271 verifies the hash as-signed. DeFi protocols (EIP-712 / signTypedData_v4) pass an
                 // already-prepared digest — adding a personal_sign prefix here would silently reject them.
                 (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, sig.data);
                 if (err != ECDSA.RecoverError.NoError || recovered != sig.signer) return 0xffffffff;
-            } else {
-                if (info.qx == bytes32(0)) return 0xffffffff;
+            } else if (info.kind == SignerType.Passkey) {
                 (bytes32 qx, bytes32 qy, WebAuthn.WebAuthnAuth memory auth) =
                     abi.decode(sig.data, (bytes32, bytes32, WebAuthn.WebAuthnAuth));
                 if (qx != info.qx || qy != info.qy) return 0xffffffff;
                 bytes memory challenge = abi.encodePacked(hash);
                 if (!WebAuthn.verify(challenge, auth, qx, qy)) return 0xffffffff;
+            } else {
+                // ERC-1271 contract signer: forward the raw hash to its own validator.
+                if (!_isValidContractSig(sig.signer, hash, sig.data)) return 0xffffffff;
             }
         }
 

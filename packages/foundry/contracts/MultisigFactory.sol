@@ -14,7 +14,12 @@ contract MultisigFactory {
     address public immutable implementation;
 
     event MultisigCreated(
-        address indexed multisig, address indexed deployer, bytes32 salt, address[] eoaSigners, uint256 threshold
+        address indexed multisig,
+        address indexed deployer,
+        bytes32 salt,
+        address[] eoaSigners,
+        address[] contractSigners,
+        uint256 threshold
     );
 
     error ImplementationHasNoCode();
@@ -33,6 +38,7 @@ contract MultisigFactory {
      * @param passkeyQxs Passkey x-coordinates (parallel to passkeyQys / credentialIdHashes).
      * @param passkeyQys Passkey y-coordinates.
      * @param credentialIdHashes keccak256(credentialId) hashes for login lookup; pass 0 to skip.
+     * @param contractSigners ERC-1271 contract signer addresses (e.g. another Multisig); must have code.
      * @param threshold Number of signatures required.
      * @param salt Caller-chosen salt; combined with msg.sender to form the effective salt.
      * @return multisig Address of the deployed clone.
@@ -42,13 +48,16 @@ contract MultisigFactory {
         bytes32[] calldata passkeyQxs,
         bytes32[] calldata passkeyQys,
         bytes32[] calldata credentialIdHashes,
+        address[] calldata contractSigners,
         uint256 threshold,
         bytes32 salt
     ) external returns (address multisig) {
         bytes32 effectiveSalt = _effectiveSalt(msg.sender, salt);
         multisig = Clones.cloneDeterministic(implementation, effectiveSalt);
-        Multisig(payable(multisig)).initialize(eoaSigners, passkeyQxs, passkeyQys, credentialIdHashes, threshold);
-        emit MultisigCreated(multisig, msg.sender, salt, eoaSigners, threshold);
+        Multisig(payable(multisig)).initialize(
+            eoaSigners, passkeyQxs, passkeyQys, credentialIdHashes, contractSigners, threshold
+        );
+        emit MultisigCreated(multisig, msg.sender, salt, eoaSigners, contractSigners, threshold);
     }
 
     /// @notice Predict the address of a multisig the given deployer would get for the given salt.

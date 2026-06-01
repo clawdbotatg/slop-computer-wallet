@@ -19,16 +19,35 @@ optimism = "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 optimismSepolia = "https://opt-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 polygon = "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 polygonMumbai = "https://polygon-mumbai.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
-polygonZkEvm = "https://zkevm-rpc.com"
+polygonZkEvm = "https://polygonzkevm-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 polygonZkEvmTestnet = "https://rpc.public.zkevm-test.net"
 gnosis = "https://gnosis-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 chiado = "https://rpc.chiadochain.net"
 base = "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 baseSepolia = "https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 scrollSepolia = "https://sepolia-rpc.scroll.io"
-scroll = "https://rpc.scroll.io"
+scroll = "https://scroll-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 pgn = "https://rpc.publicgoods.network"
 pgnTestnet = "https://sepolia.publicgoods.network"
+
+# --- Additional deterministic-deploy targets (Arachnid singleton present, EVM) ---
+linea = "https://linea-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+zora = "https://zora-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+unichain = "https://unichain-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+mantle = "https://mantle-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+celo = "https://celo-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+# Need the network enabled on the Alchemy app before these resolve:
+berachain = "https://berachain-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+worldchain = "https://worldchain-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+blast = "https://blast-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+ink = "https://ink-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+soneium = "https://soneium-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+# zkStack chains: deployable but address will NOT match (different bytecode + CREATE2 rules)
+zksync = "https://zksync-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+abstract = "https://abstract-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+# Not on Alchemy — official RPCs are the only option (opted in explicitly):
+hyperliquid = "https://rpc.hyperliquid.xyz/evm"
+tempo = "https://rpc.tempo.xyz"
 
 
 localhost = "http://127.0.0.1:8545"
@@ -44,6 +63,18 @@ optimism = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/ap
 polygon = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = 137 }
 polygonMumbai = { key = "${ETHERSCAN_API_KEY}" }
 gnosis = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = 100 }
+# Etherscan V2 also indexes these chains under the same key:
+scroll = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = 534352 }
+linea = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = 59144 }
+unichain = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=130", chain = 130 }
+mantle = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=5000", chain = 5000 }
+celo = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = 42220 }
+blast = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = 81457 }
+berachain = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=80094", chain = 80094 }
+zksync = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=324", chain = 324 }
+polygonZkEvm = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1101", chain = 1101 }
+zora = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=7777777", chain = 7777777 }
+worldchain = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = 480 }
 
 
 
