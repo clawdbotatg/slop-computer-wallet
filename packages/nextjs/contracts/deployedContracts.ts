@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   1: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -836,10 +836,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 25082269,
+      deployedOnBlock: 25233806,
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -982,12 +982,12 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 25082268,
+      deployedOnBlock: 25233806,
     },
   },
   10: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -1816,10 +1816,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 152339348,
+      deployedOnBlock: 152427073,
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -1962,12 +1962,12 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 152339348,
+      deployedOnBlock: 152427073,
     },
   },
   100: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -2796,10 +2796,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 46278963,
+      deployedOnBlock: 46499775,
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -2942,12 +2942,12 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 46278963,
+      deployedOnBlock: 46499775,
     },
   },
   137: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -3778,7 +3778,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -3925,7 +3925,7 @@ const deployedContracts = {
   },
   8453: {
     Multisig: {
-      address: "0x5be7f750cc271dbf0c6027a45bfe78b99504ce3a",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -4757,7 +4757,7 @@ const deployedContracts = {
       deployedOnBlock: 46779400,
     },
     MultisigFactory: {
-      address: "0xfcdee21865b60c2700c23cd946316ceda0f215b5",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -4905,7 +4905,7 @@ const deployedContracts = {
   },
   31337: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x346Db4e22dDF585c8f97496820c2106aE277df1e",
       abi: [
         {
           type: "constructor",
@@ -5737,7 +5737,7 @@ const deployedContracts = {
       deployedOnBlock: 62,
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0x21f03d2AdaeaAfe75E0c721bD1ebBc4C9Af9602e",
       abi: [
         {
           type: "constructor",
@@ -5880,12 +5880,12 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 63,
+      deployedOnBlock: 62,
     },
   },
   42161: {
     Multisig: {
-      address: "0x346db4e22ddf585c8f97496820c2106ae277df1e",
+      address: "0x5Be7f750Cc271DBf0C6027a45bFe78b99504CE3A",
       abi: [
         {
           type: "constructor",
@@ -6714,10 +6714,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 468769821,
+      deployedOnBlock: 469471019,
     },
     MultisigFactory: {
-      address: "0x21f03d2adaeaafe75e0c721bd1ebbc4c9af9602e",
+      address: "0xfcdEe21865b60C2700C23Cd946316CEdA0F215B5",
       abi: [
         {
           type: "constructor",
@@ -6860,7 +6860,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 468769824,
+      deployedOnBlock: 469471019,
     },
   },
 } as const;

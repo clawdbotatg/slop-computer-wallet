@@ -13,6 +13,8 @@ Everything a frontend / backend / bot needs to talk to the live `MultisigFactory
 
 These are the **v4** addresses (the `-v4` deploy salt). v4 collapses EOA and ERC-1271 contract signers into a single **Account** signer kind, validated polymorphically (ECDSA, accepting raw or personal_sign, then ERC-1271 fallback — the OpenZeppelin `SignatureChecker` pattern). So a plain EOA, an EIP-7702 smart account (e.g. MetaMask), a Gnosis Safe, or another `Multisig` can all be signers, and the contract never needs to know which at registration. **Passkey** stays its own kind. Same addresses on every chain we deploy to (as long as the source doesn't change). See [`README.md`](README.md#deploying-to-a-new-chain) for the deploy walkthrough.
 
+**Live & verified on:** Ethereum mainnet (1), Optimism (10), Gnosis (100), Polygon (137), Arbitrum One (42161), Base (8453). The factory and implementation are at the identical addresses above on every one of these chains, deployed via the Arachnid CREATE2 singleton.
+
 > The earlier v1 deploy (`MultisigFactory` `0x21f0…602E`, `Multisig` `0x346D…df1e`) lacked contract signers and is superseded — do not create new wallets on it.
 
 Pinned ABI URLs (commit-stable):
